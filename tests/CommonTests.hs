@@ -2,7 +2,7 @@
 -- @+node:gcross.20090520163423.2:@thin CommonTests.hs
 -- @@language haskell
 
-module CommonTests where
+module CommonTests(tests) where
 
 -- @<< Imports >>
 -- @+node:gcross.20090520163423.3:<< Imports >>

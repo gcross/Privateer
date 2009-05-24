@@ -151,7 +151,7 @@ classifyBlockItem item =
             stat
 -- @-node:gcross.20090517181648.11:classifyBlockItem
 -- @-node:gcross.20090517181648.10:Classification
--- @+node:gcross.20090506115644.14:Processing
+-- @+node:gcross.20090506115644.14:Document Production
 -- @+node:gcross.20090517181648.13:produceDocumentFromBlockItemClassification
 produceDocumentFromBlockItemClassification :: BlockItemClassification -> Doc
 produceDocumentFromBlockItemClassification classification =
@@ -181,7 +181,7 @@ produceDocumentFromBlockItemClassification classification =
   where
     makePrintfDoc :: String -> Doc
     makePrintfDoc variable_name =
-        text $ printf "printf(\"\t\t<static-variable name=\"%s\" size=\"%%i\"/>\", sizeof(%s));"
+        text $ printf "printf(\"\t\t<static-variable name=\\\"%s\\\" size=\\\"%%i\\\"/>\\n\", sizeof(%s));"
                                                       variable_name                variable_name
 -- @-node:gcross.20090517181648.13:produceDocumentFromBlockItemClassification
 -- @+node:gcross.20090517181648.5:produceDocumentFromToplevelClassification
@@ -206,15 +206,55 @@ produceDocumentFromToplevelClassification classification =
         let visibility = case storage_classification of
                 Automatic -> "exported"
                 Static -> "hidden"
-        in text $ printf "printf(\"\t<%s-variable name=\"%s\" size=\"%%i\"/>\", sizeof(%s));"
+        in text $ printf "printf(\"\t<%s-variable name=\\\"%s\\\" size=\\\"%%i\\\"/>\\n\", sizeof(%s));"
                                   visibility       variable_name                variable_name
     makeBeginFunctionPrintfDoc :: String -> Doc
-    makeBeginFunctionPrintfDoc function_name = text $ printf "printf(\"\t<function name=\"%s\">\");"
+    makeBeginFunctionPrintfDoc function_name = text $ printf "printf(\"\t<function name=\\\"%s\\\">\\n\");"
                                                                                     function_name
     makeEndFunctionPrintfDoc :: Doc
-    makeEndFunctionPrintfDoc = text $ printf "printf(\"\t</function>\");"
+    makeEndFunctionPrintfDoc = text $ printf "printf(\"\t</function>\\n\");"
 -- @-node:gcross.20090517181648.5:produceDocumentFromToplevelClassification
--- @-node:gcross.20090506115644.14:Processing
+-- @-node:gcross.20090506115644.14:Document Production
+-- @+node:gcross.20090523222635.14:Processing
+-- @+node:gcross.20090523222635.15:processStream
+processStream :: InputStream -> Doc
+processStream input =
+    let block = 
+            case execParser_ translUnitP input nopos of
+                Left err -> throw (ParseException err)
+                Right (CTranslUnit decls _) ->
+                    vcat
+                    .
+                    map (
+                            produceDocumentFromToplevelClassification
+                            .
+                            classifyToplevelDeclaration
+                        )
+                    $
+                    decls
+    in  text "extern int printf(const char *, ...);" $+$
+        text "int main(int argc, char** argv)" $+$
+       (
+        braces
+        .
+        nest 4
+        $
+        vcat
+        [   text "printf(\"<analysis>\\n\");"
+        ,   block
+        ,   text "printf(\"</analysis>\\n\");"
+        ,   text ""
+        ]
+       )
+-- @-node:gcross.20090523222635.15:processStream
+-- @+node:gcross.20090523222635.18:processFile
+processFile :: String -> String -> IO ()
+processFile input_filename output_filename = do
+    input <- readInputStream input_filename
+    let output = processStream input
+    (writeFile output_filename . render) output
+-- @-node:gcross.20090523222635.18:processFile
+-- @-node:gcross.20090523222635.14:Processing
 -- @-others
 -- @-node:gcross.20090502101608.4:@thin SizeAnalysis.hs
 -- @-leo

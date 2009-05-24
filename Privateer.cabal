@@ -1,0 +1,27 @@
+Name:           Privateer
+Version:        0.5
+Cabal-Version:  >= 1.2
+License:        BSD3
+Author:         Gregory Crosswhite
+Homepage:       http://github.com/gcross/Privateer
+Synopsis:       Automatic global variable privatization
+Build-Type:     Simple
+
+Executable privateer-analyze
+  Build-Depends:  base >= 4,
+                  language-c >= 0.3.1.1,
+                  pretty >= 1.0.1,
+                  containers >= 0.2.0.1,
+                  stm >= 2.1.1.2,
+                  syb,
+                  mtl >= 1.1.0.2,
+                  bytestring >= 0.9.1.4,
+                  filepath >= 1.1.0.2,
+                  directory >= 1.0.0.3,
+                  haskell98,
+                  FileManip >= 0.3.2,
+                  stream-fusion >= 0.1.2.1
+  Main-Is:        privateer-analyze.hs
+  Hs-Source-Dirs: src
+  Other-Modules:  SizeAnalysis
+  GHC-Options:    -O0

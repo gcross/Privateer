@@ -2,7 +2,7 @@
 -- @+node:gcross.20090520220305.3:@thin SizeAnalysisTests.hs
 -- @@language haskell
 
-module SizeAnalysisTests where
+module SizeAnalysisTests(tests) where
 
 -- @<< Imports >>
 -- @+node:gcross.20090520220305.4:<< Imports >>

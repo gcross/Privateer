@@ -4,6 +4,7 @@
 
 -- @<< Language Extensions >>
 -- @+node:gcross.20090520220305.37:<< Language Extensions >>
+{-# LANGUAGE DeriveDataTypeable #-}
 -- @-node:gcross.20090520220305.37:<< Language Extensions >>
 -- @nl
 
@@ -11,6 +12,7 @@ module Common where
 
 -- @<< Imports >>
 -- @+node:gcross.20090520163423.13:<< Imports >>
+import Control.Exception
 import Data.Data
 import Data.Generics
 import Data.List
@@ -63,6 +65,13 @@ extractBlockFromStatement (CCompound _ items _) = Just items
 extractBlockFromStatement _ = Nothing
 -- @-node:gcross.20090517181648.12:extractBlockFromStatement
 -- @-node:gcross.20090506115644.15:Utilitites
+-- @+node:gcross.20090523222635.16:Exceptions
+-- @+node:gcross.20090523222635.17:ParseException
+data ParseException = ParseException ParseError
+     deriving (Show, Typeable)
+instance Exception ParseException
+-- @-node:gcross.20090523222635.17:ParseException
+-- @-node:gcross.20090523222635.16:Exceptions
 -- @-others
 -- @-node:gcross.20090520163423.12:@thin Common.hs
 -- @-leo

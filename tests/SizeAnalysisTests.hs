@@ -62,6 +62,19 @@ tests = [   testGroup "Queries"
                     ,   testCase "extern" test_classification_classifyDeclaration_extern
                     ]
                 ]
+            ,   testGroup "Processing"
+                [   testGroup "produceDocumentFromBlockItemClassification"
+                    [   testGroup "statements"
+                        [   testCase "1" test_processing_produceDocumentFromBlockItemClassification_statement_1
+                        ,   testCase "2" test_processing_produceDocumentFromBlockItemClassification_statement_2
+                        ,   testCase "3" test_processing_produceDocumentFromBlockItemClassification_statement_3
+                        ]
+                    ,   testGroup "declarations"
+                        [   testCase "1" test_processing_produceDocumentFromBlockItemClassification_declaration_1
+                        ,   testCase "2" test_processing_produceDocumentFromBlockItemClassification_declaration_2
+                        ]
+                    ]
+                ]
             ]
         ]
 -- @+node:gcross.20090520220305.31:Queries
@@ -205,6 +218,94 @@ test_classification_classifyDeclaration_extern =
 -- @-node:gcross.20090520220305.39:extern
 -- @-node:gcross.20090520220305.33:classifyDeclaration
 -- @-node:gcross.20090520220305.32:Classification
+-- @+node:gcross.20090523222635.2:Processing
+-- @+node:gcross.20090523222635.5:produceDocumentFromBlockItemClassification
+-- @+node:gcross.20090523222635.6:statements
+-- @+node:gcross.20090523222635.3:1
+test_processing_produceDocumentFromBlockItemClassification_statement_1 =
+    assertDataEqual "was the statement correctly classified?" ""
+    .
+    render
+    .
+    produceDocumentFromBlockItemClassification
+    .
+    classifyBlockItem
+    .
+    CBlockStmt
+    .
+    parseStatement
+    $
+    "i = 1;"
+-- @-node:gcross.20090523222635.3:1
+-- @+node:gcross.20090523222635.4:2
+test_processing_produceDocumentFromBlockItemClassification_statement_2 =
+    assertDataEqual "was the statement correctly classified?" ""
+    .
+    render
+    .
+    produceDocumentFromBlockItemClassification
+    .
+    classifyBlockItem
+    .
+    CBlockStmt
+    .
+    parseStatement
+    $
+    "if(i == 1) i = 2; else i = 3;"
+-- @-node:gcross.20090523222635.4:2
+-- @+node:gcross.20090523222635.7:3
+test_processing_produceDocumentFromBlockItemClassification_statement_3 =
+    assertDataEqual "was the statement correctly classified?" "{}"
+    .
+    render
+    .
+    produceDocumentFromBlockItemClassification
+    .
+    classifyBlockItem
+    .
+    CBlockStmt
+    .
+    parseStatement
+    $
+    "switch(c) { case 'a': i = 3; }"
+-- @-node:gcross.20090523222635.7:3
+-- @-node:gcross.20090523222635.6:statements
+-- @+node:gcross.20090523222635.8:declarations
+-- @+node:gcross.20090523222635.9:1
+test_processing_produceDocumentFromBlockItemClassification_declaration_1 =
+    assertDataEqual "was the declaration correctly classified?" "{int i;}"
+    .
+    render
+    .
+    produceDocumentFromBlockItemClassification
+    .
+    classifyBlockItem
+    .
+    CBlockStmt
+    .
+    parseStatement
+    $
+    "{ int i = 1; }"
+-- @-node:gcross.20090523222635.9:1
+-- @+node:gcross.20090523222635.10:2
+test_processing_produceDocumentFromBlockItemClassification_declaration_2 =
+    assertDataEqual "was the declaration correctly classified?" "{static int i;\n printf(\"\t\t<static-variable name=\"i\" size=\"%i\"/>\", sizeof(i));}"
+    .
+    render
+    .
+    produceDocumentFromBlockItemClassification
+    .
+    classifyBlockItem
+    .
+    CBlockStmt
+    .
+    parseStatement
+    $
+    "{ static int i = 1; }"
+-- @-node:gcross.20090523222635.10:2
+-- @-node:gcross.20090523222635.8:declarations
+-- @-node:gcross.20090523222635.5:produceDocumentFromBlockItemClassification
+-- @-node:gcross.20090523222635.2:Processing
 -- @-node:gcross.20090520220305.5:Tests
 -- @-others
 

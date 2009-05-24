@@ -71,7 +71,6 @@ tests = [   testGroup "Queries"
                         ]
                     ,   testGroup "declarations"
                         [   testCase "1" test_processing_produceDocumentFromBlockItemClassification_declaration_1
-                        ,   testCase "2" test_processing_produceDocumentFromBlockItemClassification_declaration_2
                         ]
                     ]
                 ]
@@ -218,7 +217,7 @@ test_classification_classifyDeclaration_extern =
 -- @-node:gcross.20090520220305.39:extern
 -- @-node:gcross.20090520220305.33:classifyDeclaration
 -- @-node:gcross.20090520220305.32:Classification
--- @+node:gcross.20090523222635.2:Processing
+-- @+node:gcross.20090523222635.2:Document Production
 -- @+node:gcross.20090523222635.5:produceDocumentFromBlockItemClassification
 -- @+node:gcross.20090523222635.6:statements
 -- @+node:gcross.20090523222635.3:1
@@ -287,25 +286,9 @@ test_processing_produceDocumentFromBlockItemClassification_declaration_1 =
     $
     "{ int i = 1; }"
 -- @-node:gcross.20090523222635.9:1
--- @+node:gcross.20090523222635.10:2
-test_processing_produceDocumentFromBlockItemClassification_declaration_2 =
-    assertDataEqual "was the declaration correctly classified?" "{static int i;\n printf(\"\t\t<static-variable name=\"i\" size=\"%i\"/>\", sizeof(i));}"
-    .
-    render
-    .
-    produceDocumentFromBlockItemClassification
-    .
-    classifyBlockItem
-    .
-    CBlockStmt
-    .
-    parseStatement
-    $
-    "{ static int i = 1; }"
--- @-node:gcross.20090523222635.10:2
 -- @-node:gcross.20090523222635.8:declarations
 -- @-node:gcross.20090523222635.5:produceDocumentFromBlockItemClassification
--- @-node:gcross.20090523222635.2:Processing
+-- @-node:gcross.20090523222635.2:Document Production
 -- @-node:gcross.20090520220305.5:Tests
 -- @-others
 

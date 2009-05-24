@@ -17,7 +17,7 @@ import Control.Exception
 
 import qualified Data.ByteString.Lazy.Char8 as B8
 import Data.Data
-import Data.List
+import qualified Data.List.Stream as List
 import Data.Maybe
 
 import Language.C
@@ -66,7 +66,7 @@ hasStaticInsideBlockItem (CBlockDecl (CDecl decl_specs _ _)) = any isStaticSpec 
         isStaticSpec _ = False
 
 hasStaticInsideStatement :: CStat -> Bool
-hasStaticInsideStatement = any (any hasStaticInsideBlockItem) . extractNestedBlocksFromStatement
+hasStaticInsideStatement = List.any (List.any hasStaticInsideBlockItem) . extractNestedBlocksFromStatement
 
 hasStaticInsideFunction :: CFunDef -> Bool
 hasStaticInsideFunction (CFunDef _ _ _ stat _) = hasStaticInsideStatement stat
@@ -84,7 +84,7 @@ globalStorageRequiredBy (CDeclExt (CDecl decl_specs _ _)) =
 -- @-node:gcross.20090506115644.17:globalStorageRequiredBy
 -- @+node:gcross.20090506115644.18:needsFurtherProcessing
 needsFurtherProcessing :: CTranslUnit -> Bool
-needsFurtherProcessing (CTranslUnit ext_decls _) = any globalStorageRequiredBy ext_decls
+needsFurtherProcessing (CTranslUnit ext_decls _) = List.any globalStorageRequiredBy ext_decls
 -- @-node:gcross.20090506115644.18:needsFurtherProcessing
 -- @-node:gcross.20090506115644.12:Queries
 -- @+node:gcross.20090517181648.10:Classification
@@ -99,7 +99,7 @@ classifyToplevelDeclaration extdecl =
             then
                 FunctionDefinitionContainingStatics (identToString ident)
                 .
-                map classifyBlockItem
+                List.map classifyBlockItem
                 .
                 fromJust
                 .
@@ -113,7 +113,7 @@ classifyDeclaration :: CDecl -> DeclarationClassification
 classifyDeclaration decl =
     let (CDecl decl_specs declarators node_info) = decl
         (variable_names,stripped_declarators) =
-            mapAccumL 
+            List.mapAccumL 
                 (\variable_names (Just declarator,_,_) ->
                     let CDeclr (Just ident) indirections _ _ _ = declarator
                         name = identToString ident
@@ -144,7 +144,7 @@ classifyBlockItem item =
         CBlockStmt stat ->
             NestedBlocks
             .
-            (map $ map classifyBlockItem)
+            (List.map $ List.map classifyBlockItem)
             .
             extractNestedBlocksFromStatement
             $

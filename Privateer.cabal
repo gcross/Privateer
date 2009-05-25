@@ -20,7 +20,10 @@ Executable privateer-analyze
                   directory >= 1.0.0.3,
                   haskell98,
                   FileManip >= 0.3.2,
-                  stream-fusion >= 0.1.2.1
+                  stream-fusion >= 0.1.2.1,
+                  bytestring >= 0.9.1.4,
+                  bytestring-trie >= 0.1.4,
+                  hexpat >= 0.8
   Main-Is:        privateer-analyze.hs
   Hs-Source-Dirs: src
   Other-Modules:  SizeAnalysis

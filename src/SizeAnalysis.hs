@@ -15,15 +15,19 @@ module SizeAnalysis where
 -- @+node:gcross.20090502101608.6:<< Imports >>
 import Control.Exception
 
-import qualified Data.ByteString.Lazy.Char8 as B8
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as B8
 import Data.Data
 import qualified Data.List.Stream as List
+import Data.Trie (Trie)
+import qualified Data.Trie as Trie
 import Data.Maybe
 
 import Language.C
 
 import Text.PrettyPrint
 import Text.Printf
+import Text.XML.Expat.Tree
 
 import Common
 -- @-node:gcross.20090502101608.6:<< Imports >>
@@ -51,6 +55,12 @@ data BlockItemClassification =
  |  NestedBlocks [[BlockItemClassification]]
  |  BlockItemDeclaration DeclarationClassification
  deriving (Typeable,Data)
+
+data AnalyzedModule = AnalyzedModule
+    {    exportedVariables :: Trie Int
+    ,    hiddenVariables :: Trie Int
+    ,    functionsWithStatics :: Trie (Trie Int)
+    }
 -- @-node:gcross.20090502101608.7:<< Types >>
 -- @nl
 
@@ -255,6 +265,49 @@ processFile input_filename output_filename = do
     (writeFile output_filename . render) output
 -- @-node:gcross.20090523222635.18:processFile
 -- @-node:gcross.20090523222635.14:Processing
+-- @+node:gcross.20090524230548.5:Analysis
+-- @+node:gcross.20090524230548.6:xmlToAnalyzedModule
+analysis_B = B8.pack "analysis"
+exported_B = B8.pack "exported-variable"
+hidden_B = B8.pack "hidden-variable"
+static_B = B8.pack "static-variable"
+name_B = B8.pack "name"
+size_B = B8.pack "size"
+function_B = B8.pack "function"
+
+xmlToAnalyzedModule :: Node ByteString ByteString -> AnalyzedModule
+xmlToAnalyzedModule (Element name attributes children) = assert (name == analysis_B) $
+    AnalyzedModule
+        {   exportedVariables = Trie.fromList . readVariables exported_B $ children
+        ,   hiddenVariables = Trie.fromList . readVariables hidden_B $ children
+        ,   functionsWithStatics =
+                Trie.fromList
+                .
+                List.map (\(Element _ attributes children) ->
+                    (   fromJust . List.lookup name_B $ attributes
+                    ,   Trie.fromList . readVariables static_B $ children
+                    )
+                  )
+                .
+                List.filter isFunctionElement
+                $
+                children
+        }
+  where
+    readVariables vartyp = List.map readVariable . List.filter (isVariableOfType vartyp)
+
+    readVariable (Element _ attributes _ ) =
+        let name = fromJust . List.lookup name_B $ attributes
+            size = read . B8.unpack . fromJust . List.lookup size_B $ attributes
+        in (name,size)
+
+    isFunctionElement (Element name _ _) = (name == function_B)
+    isFunctionElement _ = False
+
+    isVariableOfType vartyp (Element name _ _) = vartyp == name
+    isVariableOfType _ _ = False
+-- @-node:gcross.20090524230548.6:xmlToAnalyzedModule
+-- @-node:gcross.20090524230548.5:Analysis
 -- @-others
 -- @-node:gcross.20090502101608.4:@thin SizeAnalysis.hs
 -- @-leo

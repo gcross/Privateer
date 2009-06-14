@@ -9,20 +9,17 @@
 <preferences/>
 <find_panel_settings/>
 <vnodes>
-<v t="gcross.20090502101608.3" str_leo_pos="2,2,1"><vh>@chapters</vh></v>
-<v t="gcross.20090502101608.5" a="E"><vh>@path src</vh>
-<v t="gcross.20090520163423.12" a="E"
-expanded="gcross.20090523222635.16,"><vh>@thin Common.hs</vh></v>
-<v t="gcross.20090502101608.4" a="E"
-expanded="gcross.20090506115644.14,gcross.20090523222635.14,"><vh>@thin SizeAnalysis.hs</vh></v>
-<v t="gcross.20090523222635.11" a="E"><vh>@thin privateer-analyze.hs</vh></v>
+<v t="gcross.20090502101608.3" str_leo_pos="2"><vh>@chapters</vh></v>
+<v t="gcross.20090502101608.5"><vh>@path src</vh>
+<v t="gcross.20090520163423.12"><vh>@thin Common.hs</vh></v>
+<v t="gcross.20090502101608.4"><vh>@thin SizeAnalysis.hs</vh></v>
+<v t="gcross.20090523222635.11"><vh>@thin privateer-analyze.hs</vh></v>
 </v>
-<v t="gcross.20090517181648.14" a="E"><vh>@path tests</vh>
-<v t="gcross.20090209172438.8" a="E"
-expanded="gcross.20090201173206.26,"><vh>@thin CommonTestUtils.hs</vh></v>
+<v t="gcross.20090517181648.14"><vh>@path tests</vh>
+<v t="gcross.20090209172438.8"><vh>@thin CommonTestUtils.hs</vh></v>
 <v t="gcross.20090520163423.2"><vh>@thin CommonTests.hs</vh></v>
-<v t="gcross.20090520220305.3" a="E"
-expanded="gcross.20090520220305.5,gcross.20090520220305.33,gcross.20090523222635.5,gcross.20090523222635.8,"><vh>@thin SizeAnalysisTests.hs</vh></v>
+<v t="gcross.20090520220305.3"><vh>@thin SizeAnalysisTests.hs</vh></v>
+<v t="gcross.20090523222635.23"><vh>@thin RunAnalysisTests.hs</vh></v>
 <v t="gcross.20090411002248.2"><vh>@thin runtests.hs</vh></v>
 </v>
 </vnodes>

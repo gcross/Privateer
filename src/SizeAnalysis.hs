@@ -57,9 +57,9 @@ data BlockItemClassification =
  deriving (Typeable,Data)
 
 data AnalyzedModule = AnalyzedModule
-    {    exportedVariables :: Trie Int
-    ,    hiddenVariables :: Trie Int
-    ,    functionsWithStatics :: Trie (Trie Int)
+    {    exportedVariables :: !(Trie Int)
+    ,    hiddenVariables :: !(Trie Int)
+    ,    functionsWithStatics :: !(Trie (Trie Int))
     }
 -- @-node:gcross.20090502101608.7:<< Types >>
 -- @nl

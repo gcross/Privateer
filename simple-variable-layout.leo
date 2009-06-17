@@ -9,15 +9,14 @@
 <preferences/>
 <find_panel_settings/>
 <vnodes>
-<v t="gcross.20090615091711.9" str_leo_pos="4,0,4,0,1"><vh>@chapters</vh></v>
+<v t="gcross.20090615091711.9" str_leo_pos="4"><vh>@chapters</vh></v>
 <v t="gcross.20090615091711.15"><vh>@thin simple-variable-layout.cabal</vh></v>
 <v t="gcross.20090615091711.16"><vh>@thin Setup.hs</vh></v>
-<v t="gcross.20090615091711.10" a="E"><vh>@path Data</vh>
-<v t="gcross.20090615091711.11" a="E"><vh>@thin VariableLayout.hs</vh></v>
+<v t="gcross.20090615091711.10"><vh>@path Data</vh>
+<v t="gcross.20090615091711.11"><vh>@thin VariableLayout.hs</vh></v>
 </v>
-<v t="gcross.20090615091711.18" a="E"><vh>@path tests</vh>
-<v t="gcross.20090615091711.17" a="E"
-expanded="gcross.20090615091711.19,gcross.20090615091711.20,"><vh>@thin runtests.hs</vh></v>
+<v t="gcross.20090615091711.18"><vh>@path tests</vh>
+<v t="gcross.20090615091711.17"><vh>@thin runtests.hs</vh></v>
 </v>
 </vnodes>
 <tnodes>

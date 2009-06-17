@@ -1,0 +1,23 @@
+-- @+leo-ver=4-thin
+-- @+node:gcross.20090615091711.15:@thin simple-variable-layout.cabal
+-- @@language Haskell
+Name:           simple-variable-layout
+Description:    A simple algorithm for laying out variables with given minimum alignments.
+Version:        1.0
+Category:       Algorithms
+Cabal-Version:  >= 1.2
+License:        BSD3
+License-File:   LICENSE
+Author:         Gregory Crosswhite
+Maintainer:     Gregory Crosswhite <gcross@phys.washington.edu>
+Homepage:       http://github.com/gcross/either-unwrap
+Synopsis:       Functions for probing and unwrapping values inside of Either.
+Build-Type:     Simple
+
+Library
+  Build-Depends:    base >= 3
+  Hs-Source-Dirs:   .
+  Exposed-Modules:  Data.VariableLayout
+  GHC-Options:      -Wall
+-- @-node:gcross.20090615091711.15:@thin simple-variable-layout.cabal
+-- @-leo

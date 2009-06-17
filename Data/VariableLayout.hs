@@ -20,16 +20,14 @@ type Alignment = Int
 -- @+others
 -- @+node:gcross.20090615091711.14:fragmentBlocks
 fragmentBlocks :: Alignment -> Offset -> [(Alignment,Offset)]
-fragmentBlocks final_alignment starting_offset = go 0 starting_offset
-  where
-    go current_alignment current_offset
-        | current_alignment >= final_alignment
-            = []
-        | not (current_offset `testBit` current_alignment)
-            = go (current_alignment+1) current_offset
-        | otherwise
-            = (current_alignment,current_offset)
-                : go (current_alignment+1) (current_offset `clearBit` current_alignment)
+fragmentBlocks alignment offset 
+    | alignment <= 0
+        = []
+    | not (offset `testBit` (alignment-1))
+        = fragmentBlocks (alignment-1) offset
+    | otherwise
+        = ((alignment-1),(`shiftL` (alignment-1)) . (`shiftR` (alignment-1)) $ offset)
+            : fragmentBlocks (alignment-1) offset
 -- @-node:gcross.20090615091711.14:fragmentBlocks
 -- @-others
 -- @-node:gcross.20090615091711.11:@thin VariableLayout.hs

@@ -55,12 +55,18 @@ tests =
     -- @+node:gcross.20090615091711.20:fragmentBlocks
     [testGroup "fragmentBlocks"
         -- @    @+others
-        -- @+node:gcross.20090615091711.21:blocks have correct alignment
-        [testProperty "blocks have correct alignment" $
+        -- @+node:gcross.20090615091711.21:blocks have advertized alignment
+        [testProperty "blocks have advertized alignment" $
             \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= 0 ==>
                 all (\(alignment,offset) -> (== offset) . (`shiftL` alignment) . (`shiftR` alignment) $  offset)
                     $ fragmentBlocks final_alignment starting_offset
-        -- @-node:gcross.20090615091711.21:blocks have correct alignment
+        -- @-node:gcross.20090615091711.21:blocks have advertized alignment
+        -- @+node:gcross.20090615091711.28:blocks don't exceed final alignment
+        ,testProperty "blocks don't exceed final alignment" $
+            \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= 0 ==>
+                all ((< final_alignment) . fst)
+                    $ fragmentBlocks final_alignment starting_offset
+        -- @-node:gcross.20090615091711.28:blocks don't exceed final alignment
         -- @+node:gcross.20090615091711.26:only the right blocks are created
         ,testProperty "only the right blocks are created" $
             \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= 0 ==>

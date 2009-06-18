@@ -13,13 +13,13 @@ import Data.Bits
 import Data.List.PointedList
 import Data.Sequence (Seq, (|>), ViewL(EmptyL,(:<)))
 import qualified Data.Sequence as Seq
-
+import Data.Word
 -- @-node:gcross.20090615091711.12:<< Imports >>
 -- @nl
 
 -- @<< Types >>
 -- @+node:gcross.20090615091711.13:<< Types >>
-type Offset = Int
+type Offset = Word
 type Alignment = Int
 type BlockList = [(Alignment,Seq Offset)]
 type BlockZipper = PointedList (Alignment,Seq Offset)

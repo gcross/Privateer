@@ -22,6 +22,7 @@ import Data.List as List
 import Data.Maybe
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+import Data.Word
 
 import Debug.Trace
 
@@ -45,12 +46,19 @@ assertThrowsError expr =
     handler (Left _) = return ()
     handler (Right _) = assertFailure $ "Error was not thrown!"
 -- @-node:gcross.20090615091711.24:assertThrowsError
+-- @+node:gcross.20090615091711.40:Generators
 -- @+node:gcross.20090615091711.25:SmallInt
 newtype SmallInt = SI Int deriving (Show,Eq)
 instance Arbitrary SmallInt where
     arbitrary = choose (0,31) >>= return.SI
     coarbitrary (SI n) = coarbitrary n
 -- @-node:gcross.20090615091711.25:SmallInt
+-- @+node:gcross.20090615091711.43:Word
+instance Arbitrary Word where
+  arbitrary     = sized $ \n -> choose (0,n) >>= return.fromIntegral
+  coarbitrary n = variant.fromIntegral $ 2*n
+-- @-node:gcross.20090615091711.43:Word
+-- @-node:gcross.20090615091711.40:Generators
 -- @+node:gcross.20090615091711.19:Tests
 tests =
     -- @    @+others
@@ -59,19 +67,19 @@ tests =
         -- @    @+others
         -- @+node:gcross.20090615091711.21:blocks have advertized alignment
         [testProperty "blocks have advertized alignment" $
-            \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= 0 ==>
+            \((SI final_alignment,starting_offset) :: (SmallInt,Offset)) ->
                 all (\(alignment,offset) -> (== offset) . (`shiftL` alignment) . (`shiftR` alignment) $  offset)
                     $ fragmentBlocks final_alignment starting_offset
         -- @-node:gcross.20090615091711.21:blocks have advertized alignment
         -- @+node:gcross.20090615091711.28:blocks don't exceed final alignment
         ,testProperty "blocks don't exceed final alignment" $
-            \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= 0 ==>
+            \((SI final_alignment,starting_offset) :: (SmallInt,Offset)) ->
                 all ((<= final_alignment) . fst)
                     $ fragmentBlocks final_alignment starting_offset
         -- @-node:gcross.20090615091711.28:blocks don't exceed final alignment
         -- @+node:gcross.20090615091711.26:only the right blocks are created
         ,testProperty "only the right blocks are created" $
-            \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= (0 :: Int) ==>
+            \((SI final_alignment,starting_offset) :: (SmallInt,Offset)) ->
                 let final_offset = (`shiftL` final_alignment) . (+1) . (`shiftR` final_alignment) $ starting_offset
                     complement_offset = (final_offset - starting_offset)
                 in (
@@ -84,7 +92,7 @@ tests =
         -- @-node:gcross.20090615091711.26:only the right blocks are created
         -- @+node:gcross.20090615091711.38:sizes add up
         ,testProperty "sizes add up" $
-            \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= 0 ==>
+            \((SI final_alignment,starting_offset) :: (SmallInt,Offset)) ->
                 (== bit final_alignment)
                 .
                 (+ (starting_offset - ((`shiftL` final_alignment) . (`shiftR` final_alignment) $ starting_offset)))

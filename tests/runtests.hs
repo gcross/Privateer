@@ -20,6 +20,8 @@ import Data.Bits
 import Data.Function
 import Data.List as List
 import Data.Maybe
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 
 import Debug.Trace
 
@@ -77,6 +79,24 @@ tests =
         -- @-others
         ]
     -- @-node:gcross.20090615091711.20:fragmentBlocks
+    -- @+node:gcross.20090615091711.34:allocateBlock
+    ,testGroup "allocateBlock"
+        -- @    @+others
+        -- @+node:gcross.20090615091711.37:bad input
+        [testCase "bad input" $ assertThrowsError (allocateBlock 1 0 [])
+        -- @-node:gcross.20090615091711.37:bad input
+        -- @+node:gcross.20090615091711.35:null
+        ,testCase "null" $ assertEqual "is the correct result returned?" Nothing (allocateBlock 0 1 [])
+        -- @-node:gcross.20090615091711.35:null
+        -- @+node:gcross.20090615091711.36:simplest
+        ,testCase "simplest" $
+            assertEqual "is the correct offset returned?"
+                (Just 0)
+                (fmap snd . allocateBlock 0 1 $ [(0,Seq.singleton 0)])
+        -- @-node:gcross.20090615091711.36:simplest
+        -- @-others
+        ]
+    -- @-node:gcross.20090615091711.34:allocateBlock
     -- @-others
     ]
 

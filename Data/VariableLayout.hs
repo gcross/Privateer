@@ -48,7 +48,7 @@ allocateBlock requested_alignment requested_size block_list = assert (requested_
     return . mergeFragments
   where
     findBlock :: BlockZipper -> Maybe (BlockZipper,Offset)
-    findBlock block_zipper = 
+    findBlock block_zipper =
         let (alignment,offsets) = focus block_zipper
         in if alignment < requested_alignment
             then next block_zipper >>= findBlock
@@ -62,7 +62,7 @@ allocateBlock requested_alignment requested_size block_list = assert (requested_
     mergeFragments (block_zipper,offset) = (go (fragmentBlocks requested_alignment (offset+requested_size)) block_zipper, offset)
       where
         go :: [(Alignment,Offset)] -> BlockZipper -> BlockList
-        go fragment_list = 
+        go fragment_list =
             case fragment_list of
                 [] -> toList
                 (fragment_alignment,fragment_offset):remaining_fragments ->

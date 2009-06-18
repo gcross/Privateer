@@ -66,16 +66,37 @@ tests =
         -- @+node:gcross.20090615091711.28:blocks don't exceed final alignment
         ,testProperty "blocks don't exceed final alignment" $
             \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= 0 ==>
-                all ((< final_alignment) . fst)
+                all ((<= final_alignment) . fst)
                     $ fragmentBlocks final_alignment starting_offset
         -- @-node:gcross.20090615091711.28:blocks don't exceed final alignment
         -- @+node:gcross.20090615091711.26:only the right blocks are created
         ,testProperty "only the right blocks are created" $
-            \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= 0 ==>
-                let blocks = fragmentBlocks final_alignment starting_offset
-                in (`all` [0..final_alignment-1]) $
-                    \n -> (starting_offset `testBit` n ==) . isJust . List.lookup n $ blocks
+            \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= (0 :: Int) ==>
+                let final_offset = (`shiftL` final_alignment) . (+1) . (`shiftR` final_alignment) $ starting_offset
+                    complement_offset = (final_offset - starting_offset)
+                in (
+                    (`all` [0..final_alignment])
+                    $
+                    (\blocks n -> (complement_offset `testBit` n ==) . isJust . List.lookup n $ blocks)
+                    $
+                    fragmentBlocks final_alignment starting_offset
+                ) :: Bool
         -- @-node:gcross.20090615091711.26:only the right blocks are created
+        -- @+node:gcross.20090615091711.38:sizes add up
+        ,testProperty "sizes add up" $
+            \((SI final_alignment,starting_offset) :: (SmallInt,Int)) ->  starting_offset >= 0 ==>
+                (== bit final_alignment)
+                .
+                (+ (starting_offset - ((`shiftL` final_alignment) . (`shiftR` final_alignment) $ starting_offset)))
+                .
+                sum
+                .
+                map (bit . fst)
+                .
+                fragmentBlocks final_alignment
+                $
+                starting_offset
+        -- @-node:gcross.20090615091711.38:sizes add up
         -- @-others
         ]
     -- @-node:gcross.20090615091711.20:fragmentBlocks

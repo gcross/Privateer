@@ -29,14 +29,19 @@ type BlockZipper = PointedList (Alignment,Seq Offset)
 -- @+others
 -- @+node:gcross.20090615091711.29:fragmentBlocks
 fragmentBlocks :: Alignment -> Offset -> [(Alignment,Offset)]
-fragmentBlocks alignment offset
-    | alignment <= 0
-        = []
-    | not (offset `testBit` (alignment-1))
-        = fragmentBlocks (alignment-1) offset
-    | otherwise
-        = ((alignment-1),(`shiftL` (alignment-1)) . (`shiftR` (alignment-1)) $ offset)
-            : fragmentBlocks (alignment-1) offset
+fragmentBlocks final_alignment starting_offset =
+    go final_alignment
+  where
+    final_offset = (`shiftL` final_alignment) . (+1) . (`shiftR` final_alignment) $ starting_offset
+    complement_offset = (final_offset - starting_offset)
+    go alignment
+        | alignment < 0
+            = []
+        | not (complement_offset `testBit` alignment)
+            = go (alignment-1)
+        | otherwise
+            = (alignment,final_offset - (bit alignment))
+                : go (alignment-1)
 -- @-node:gcross.20090615091711.29:fragmentBlocks
 -- @+node:gcross.20090615091711.14:allocateBlock
 allocateBlock :: Alignment -> Offset -> BlockList -> Maybe (BlockList,Offset)

@@ -32,7 +32,7 @@ import Test.HUnit
 import Test.Framework.Providers.QuickCheck
 import Test.QuickCheck
 
-import Data.VariableLayout
+import Algorithm.VariableLayout
 -- @-node:gcross.20090615091711.23:<< Imports >>
 -- @nl
 

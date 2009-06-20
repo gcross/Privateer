@@ -2,7 +2,7 @@
 -- @+node:gcross.20090615091711.11:@thin VariableLayout.hs
 -- @@language Haskell
 
-module Data.VariableLayout where
+module Algorithm.VariableLayout where
 
 -- @<< Imports >>
 -- @+node:gcross.20090615091711.12:<< Imports >>
@@ -99,6 +99,7 @@ totalSpaceInBlocks :: BlockList -> Word
 totalSpaceInBlocks = sum . map (\(alignment,offsets) -> fromIntegral ((bit alignment) * (Seq.length offsets)))
 -- @-node:gcross.20090615091711.39:totalSpaceInBlocks
 -- @+node:gcross.20090615091711.45:makeAligned
+makeAligned :: Bits a => a -> Int -> a
 makeAligned number alignment = (`shiftL` alignment) . (`shiftR` alignment) $ number
 -- @-node:gcross.20090615091711.45:makeAligned
 -- @+node:gcross.20090615091711.32:PointedList
@@ -110,6 +111,7 @@ makeAligned number alignment = (`shiftL` alignment) . (`shiftR` alignment) $ num
 --last plist = maybe plist last next
 -- @-node:gcross.20090615091711.31:first / last
 -- @+node:gcross.20090615091711.33:toList
+toList :: PointedList a -> [a]
 toList (PointedList prefix head tail) = go prefix (head:tail)
   where
     go [] list = list

@@ -1,0 +1,25 @@
+-- @+leo-ver=4-thin
+-- @+node:gcross.20090615091711.15:@thin greedy-variable-layout.cabal
+-- @@language Haskell
+Name:           greedy-variable-layout
+Synopsis:       A simple greedy algorithm for laying out variables with specified alignment in memory.
+Version:        1.0
+Category:       Algorithms
+Cabal-Version:  >= 1.2
+License:        BSD3
+License-File:   LICENSE
+Author:         Gregory Crosswhite
+Maintainer:     Gregory Crosswhite <gcross@phys.washington.edu>
+Homepage:       http://github.com/gcross/greedy-variable-layout
+Build-Type:     Simple
+
+Library
+  Build-Depends:    base >= 3,
+                    containers >= 0.2,
+                    pointedlist >= 0.3.5,
+                    data-accessor >= 0.2.1
+  Hs-Source-Dirs:   .
+  Exposed-Modules:  Algorithm.VariableLayout
+  GHC-Options:      -Wall
+-- @-node:gcross.20090615091711.15:@thin greedy-variable-layout.cabal
+-- @-leo

@@ -12,9 +12,9 @@ import Test.Framework.Providers.HUnit
 import Test.HUnit
 import Text.PrettyPrint
 
+import Algorithm.GlobalVariablePrivatization.SizeAnalysis
+
 import CommonTestUtils
-import SizeAnalysis
--- @nonl
 -- @-node:gcross.20090520220305.4:<< Imports >>
 -- @nl
 

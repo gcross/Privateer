@@ -23,7 +23,7 @@ import System.IO.Unsafe
 
 import Test.HUnit
 
-import Common
+import Algorithm.GlobalVariablePrivatization.Common
 -- @-node:gcross.20090209172438.9:<< Imports >>
 -- @nl
 

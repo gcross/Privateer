@@ -31,7 +31,7 @@ import Test.HUnit
 import Text.PrettyPrint
 import Text.XML.Expat.Tree
 
-import SizeAnalysis
+import Algorithm.GlobalVariablePrivatization.SizeAnalysis
 -- @nonl
 -- @-node:gcross.20090523222635.24:<< Imports >>
 -- @nl

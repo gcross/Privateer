@@ -9,7 +9,7 @@ module Main where
 import Language.C
 import System
 
-import SizeAnalysis
+import Algorithm.GlobalVariablePrivatization.SizeAnalysis
 -- @-node:gcross.20090523222635.12:<< Imports >>
 -- @nl
 

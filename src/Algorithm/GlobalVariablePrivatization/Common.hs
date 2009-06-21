@@ -8,7 +8,7 @@
 -- @-node:gcross.20090520220305.37:<< Language Extensions >>
 -- @nl
 
-module Common where
+module Algorithm.GlobalVariablePrivatization.Common where
 
 -- @<< Imports >>
 -- @+node:gcross.20090520163423.13:<< Imports >>

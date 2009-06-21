@@ -9,7 +9,7 @@
 -- @-node:gcross.20090502101608.14:<< Language Extensions >>
 -- @nl
 
-module SizeAnalysis where
+module Algorithm.GlobalVariablePrivatization.SizeAnalysis where
 
 -- @<< Imports >>
 -- @+node:gcross.20090502101608.6:<< Imports >>
@@ -29,7 +29,7 @@ import Text.PrettyPrint
 import Text.Printf
 import Text.XML.Expat.Tree
 
-import Common
+import Algorithm.GlobalVariablePrivatization.Common
 -- @-node:gcross.20090502101608.6:<< Imports >>
 -- @nl
 -- @<< Types >>

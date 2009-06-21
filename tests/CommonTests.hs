@@ -12,7 +12,7 @@ import Test.Framework.Providers.HUnit
 import Test.HUnit
 import Text.PrettyPrint
 
-import Common
+import Algorithm.GlobalVariablePrivatization.Common
 import CommonTestUtils
 -- @-node:gcross.20090520163423.3:<< Imports >>
 -- @nl

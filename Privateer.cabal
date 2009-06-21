@@ -26,5 +26,5 @@ Executable privateer-analyze
                   hexpat >= 0.8
   Main-Is:        privateer-analyze.hs
   Hs-Source-Dirs: src
-  Other-Modules:  SizeAnalysis
+  Other-Modules:  Algorithm.GlobalVariablePrivatization.SizeAnalysis
   GHC-Options:    -O0

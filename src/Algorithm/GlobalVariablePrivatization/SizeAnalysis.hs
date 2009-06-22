@@ -92,10 +92,6 @@ globalStorageRequiredBy (CDeclExt (CDecl decl_specs _ _)) =
         Just (CStatic _) -> True
         _ -> False
 -- @-node:gcross.20090506115644.17:globalStorageRequiredBy
--- @+node:gcross.20090506115644.18:needsFurtherProcessing
-needsFurtherProcessing :: CTranslUnit -> Bool
-needsFurtherProcessing (CTranslUnit ext_decls _) = List.any globalStorageRequiredBy ext_decls
--- @-node:gcross.20090506115644.18:needsFurtherProcessing
 -- @-node:gcross.20090506115644.12:Queries
 -- @+node:gcross.20090517181648.10:Classification
 -- @+node:gcross.20090517181648.7:classifyToplevelDeclaration

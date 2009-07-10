@@ -33,7 +33,8 @@ import Text.PrettyPrint
 import Text.XML.Expat.Tree
 
 import Algorithm.GlobalVariablePrivatization.SizeAnalysis
--- @nonl
+
+import CommonTestUtils
 -- @-node:gcross.20090523222635.24:<< Imports >>
 -- @nl
 
@@ -70,8 +71,7 @@ makeTestFromSource source = do
         whenLeft output_tree $ \error -> assertFailure ("Parsing XML output failed with error " ++ show error)
         evaluate . xmlToAnalyzedModule . fromRight $ output_tree 
         return ()
-      ) (do
-        mapM_ (\filepath -> doesFileExist filepath >>= (flip when (removeFile filepath)))
+      ) (deleteTemporaries
             [   source_filepath
             ,   analysis_source_filepath
             ,   analysis_executable_filepath

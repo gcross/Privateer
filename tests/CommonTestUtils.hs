@@ -19,6 +19,7 @@ import Data.IORef
 
 import Language.C
 
+import System.Directory
 import System.IO.Unsafe
 
 import Test.HUnit
@@ -97,6 +98,10 @@ parseBlock code =
 -- @+node:gcross.20090209172438.16:canBeDeeplyEvaluatedWithoutError
 doesDeepEvaluationThrowError result = (evaluate $ everything (||) (\x -> x `seq` False) result) `catch` (\e -> let _ :: SomeException = e in return True)
 -- @-node:gcross.20090209172438.16:canBeDeeplyEvaluatedWithoutError
+-- @+node:gcross.20090709200011.14:deleteTemporaries
+deleteTemporaries :: [FilePath] -> IO ()
+deleteTemporaries = mapM_ (\filepath -> doesFileExist filepath >>= (flip when (removeFile filepath)))
+-- @-node:gcross.20090709200011.14:deleteTemporaries
 -- @-node:gcross.20090201173206.26:Utilities
 -- @-others
 -- @-node:gcross.20090209172438.8:@thin CommonTestUtils.hs

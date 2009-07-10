@@ -1,3 +1,6 @@
+-- @+leo-ver=4-thin
+-- @+node:gcross.20090709200011.3:@thin Privateer.cabal
+-- @@language Haskell
 Name:           Privateer
 Version:        0.5
 Cabal-Version:  >= 1.2
@@ -28,3 +31,5 @@ Executable privateer-analyze
   Hs-Source-Dirs: src
   Other-Modules:  Algorithm.GlobalVariablePrivatization.SizeAnalysis
   GHC-Options:    -O0
+-- @-node:gcross.20090709200011.3:@thin Privateer.cabal
+-- @-leo

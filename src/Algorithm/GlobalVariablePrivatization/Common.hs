@@ -27,7 +27,7 @@ import Language.C
 -- @nl
 
 -- @+others
--- @+node:gcross.20090506115644.15:Utilitites
+-- @+node:gcross.20090506115644.15:Utilities
 -- @+node:gcross.20090506115644.13:extractNestedBlocks
 extractNestedBlocksFromStatement :: CStat -> [[CBlockItem]]
 extractNestedBlocksFromStatement stat =
@@ -64,7 +64,7 @@ extractBlockFromStatement :: CStat -> Maybe [CBlockItem]
 extractBlockFromStatement (CCompound _ items _) = Just items
 extractBlockFromStatement _ = Nothing
 -- @-node:gcross.20090517181648.12:extractBlockFromStatement
--- @-node:gcross.20090506115644.15:Utilitites
+-- @-node:gcross.20090506115644.15:Utilities
 -- @+node:gcross.20090523222635.16:Exceptions
 -- @+node:gcross.20090523222635.17:ParseException
 data ParseException = ParseException ParseError

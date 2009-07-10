@@ -50,7 +50,7 @@ makeTestFromSource source = do
         hPutStr source_handle source
         hClose source_handle
         (rawSystem "cc" [source_filepath,"-o",executable_filepath]) >>=
-            assertEqual "Were we able to compute the source code?" ExitSuccess
+            assertEqual "Were we able to compile the source code?" ExitSuccess
         (_, Just process_output, _, process_handle) <-
             createProcess (proc executable_filepath []) { std_out = CreatePipe }
         exit_code <- waitForProcess process_handle
@@ -65,6 +65,10 @@ makeTestFromSource source = do
 tests =
     [   testCase "test" test_test
     ,   testCase "makeAccessor" test_makeAccessor
+    ,   testGroup "makeInitializer"
+            [   testCase "with initializer" test_makeInitializer_with_initializer
+            ,   testCase "without initializer" test_makeInitializer_without_initializer
+            ]
     ]
 -- @+node:gcross.20090709200011.13:test
 test_test = makeTestFromSource . unlines $
@@ -99,6 +103,73 @@ test_makeAccessor =
             ]
     in makeTestFromSource source
 -- @-node:gcross.20090709200011.15:makeAccessor
+-- @+node:gcross.20090709200011.24:makeInitializer
+-- @+node:gcross.20090709200011.28:with initializer
+test_makeInitializer_with_initializer =
+    let initializer_source = render . pretty $
+            let init = CInitList [([],CInitExpr expr internalNode) | expr <-
+                            [   makeIntegerExpr 42
+                            ,   makeFloatExpr 3.14
+                            ,   makeStringExpr "right"
+                            ] ] internalNode
+            in makeInitializer "global_variable" "global_variable_type" [] (Just init)
+        source = unlines
+            [""
+            ,"#include <stdio.h>"
+            ,"#include <stdlib.h>"
+            ,"#include <string.h>"
+            ,""
+            ,"typedef struct {"
+            ,"  int a;"
+            ,"  float b;"
+            ,"  char *c;"
+            ,"} global_variable_type;"
+            ,""
+            ,"global_variable_type global_variable = {0,0,\"wrong\"};"
+            ,"global_variable_type* __access__global_variable() { return &global_variable; }"
+            ,""
+            ]
+            ++ initializer_source ++ unlines
+            [""
+            ,"int main() {"
+            ,"  __initialize__global_variable();"
+            ,"  printf(\"Expected {42,3.14,'right'} but got {%i,%f,'%s',%i}\","
+            ,"         global_variable.a,global_variable.b,global_variable.c);"
+            ,"  if(     (global_variable.a != 42)"
+            ,"      ||  (global_variable.b != 3.14f)"
+            ,"      ||  (strcmp(global_variable.c,\"right\") != 0)"
+            ,"    )"
+            ,"      return -1;"
+            ,"  else"
+            ,"      return 0;"
+            ,"}"
+            ]
+    in makeTestFromSource source
+-- @-node:gcross.20090709200011.28:with initializer
+-- @+node:gcross.20090709200011.29:without initializer
+test_makeInitializer_without_initializer =
+    let initializer_source = render . pretty $ makeInitializer "global_variable" undefined [] Nothing
+        source = unlines
+            [""
+            ,"#include <stdio.h>"
+            ,""
+            ,"typedef struct {"
+            ,"  int a;"
+            ,"  float b;"
+            ,"  char *c;"
+            ,"} global_variable_type;"
+            ,""
+            ]
+            ++ initializer_source ++ unlines
+            [""
+            ,"int main() {"
+            ,"  __initialize__global_variable();"
+            ,"  return 0;"
+            ,"}"
+            ]
+    in makeTestFromSource source
+-- @-node:gcross.20090709200011.29:without initializer
+-- @-node:gcross.20090709200011.24:makeInitializer
 -- @-node:gcross.20090709200011.12:Tests
 -- @-others
 

@@ -80,16 +80,17 @@ makeTestFromSource source = do
 -- @-node:gcross.20090709200011.5:makeTestFromSource
 -- @+node:gcross.20090709200011.7:Tests
 tests =
-    [    testCase "1" test_1
+    -- @    @+others
+    -- @+node:gcross.20090709200011.6:test 1
+    [testCase "1" $ makeTestFromSource . unlines $
+        ["int i;"
+        ,"static int j;"
+        ,"extern int k;"
+        ]
+    -- @-node:gcross.20090709200011.6:test 1
+    -- @-others
     ]
 -- @nonl
--- @+node:gcross.20090709200011.6:test 1
-test_1 = makeTestFromSource . unlines $
-    ["int i;"
-    ,"static int j;"
-    ,"extern int k;"
-    ]
--- @-node:gcross.20090709200011.6:test 1
 -- @-node:gcross.20090709200011.7:Tests
 -- @-others
 

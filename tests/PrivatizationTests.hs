@@ -14,9 +14,10 @@ module PrivatizationTests(tests) where
 -- @+node:gcross.20090709200011.10:<< Imports >>
 import Control.Exception
 import Control.Monad
-import Control.Monad.Trans
 import qualified Data.ByteString as S
 import Data.Either.Unwrap
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Language.C
 import Language.C.System.GCC
 import Language.C.System.Preprocess
@@ -30,7 +31,6 @@ import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit
 import Text.PrettyPrint
-import Text.XML.Expat.Tree
 
 import Algorithm.GlobalVariablePrivatization.Privatization
 
@@ -39,6 +39,7 @@ import CommonTestUtils
 -- @nl
 
 -- @+others
+-- @+node:gcross.20090709200011.36:Test makers
 -- @+node:gcross.20090709200011.11:makeTestFromSource
 makeTestFromSource :: String -> Assertion
 makeTestFromSource source = do
@@ -61,6 +62,26 @@ makeTestFromSource source = do
             ]
       )
 -- @-node:gcross.20090709200011.11:makeTestFromSource
+-- @+node:gcross.20090709200011.35:makePrivatizeExprTest
+makePrivatizeExprTest :: Set String -> Set String -> String -> String -> Assertion
+makePrivatizeExprTest global_variables local_static_variables original_code privatized_code =
+    assertEqual "is the privatized code correct?" privatized_code
+    .
+    unwords
+    .
+    words
+    .
+    render
+    .
+    pretty
+    .
+    privatizeExpr (global_variables,local_static_variables)
+    .
+    parseExpression
+    $
+    original_code
+-- @-node:gcross.20090709200011.35:makePrivatizeExprTest
+-- @-node:gcross.20090709200011.36:Test makers
 -- @+node:gcross.20090709200011.12:Tests
 tests =
     -- @    @+others
@@ -169,6 +190,28 @@ tests =
         ]
     -- @nonl
     -- @-node:gcross.20090709200011.24:makeInitializer
+    -- @+node:gcross.20090709200011.33:privatizeExpr
+    ,testGroup "privatizeExpr"
+        -- @    @+others
+        -- @+node:gcross.20090709200011.34:global variable
+        [testCase "global variable" $
+            makePrivatizeExprTest (Set.singleton "var") Set.empty "1 + var * 2" "1 + *__access__var() * 2"
+        -- @-node:gcross.20090709200011.34:global variable
+        -- @+node:gcross.20090709200011.37:local static variable
+        ,testCase "local static variable" $
+            makePrivatizeExprTest Set.empty (Set.singleton "var") "var * 2 == 5 ? i : j" "*var * 2 == 5 ? i : j"
+        -- @-node:gcross.20090709200011.37:local static variable
+        -- @+node:gcross.20090709200011.38:both
+        ,testCase "both" $
+            makePrivatizeExprTest (Set.singleton "var") (Set.singleton "var") "(int) sizeof(var++)" "(int) sizeof((*var)++)"
+        -- @-node:gcross.20090709200011.38:both
+        -- @+node:gcross.20090709200011.39:neither
+        ,testCase "neither" $
+            makePrivatizeExprTest (Set.singleton "var") (Set.singleton "var") "++nonvar" "++nonvar"
+        -- @-node:gcross.20090709200011.39:neither
+        -- @-others
+        ]
+    -- @-node:gcross.20090709200011.33:privatizeExpr
     -- @-others
     ]
 -- @-node:gcross.20090709200011.12:Tests

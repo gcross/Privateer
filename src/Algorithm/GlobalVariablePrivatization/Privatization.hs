@@ -6,6 +6,9 @@ module Algorithm.GlobalVariablePrivatization.Privatization where
 
 -- @<< Imports >>
 -- @+node:gcross.20090709200011.2:<< Imports >>
+import Data.Generics
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Language.C
 -- @-node:gcross.20090709200011.2:<< Imports >>
 -- @nl
@@ -95,6 +98,20 @@ makeInitializer variable_name variable_type_name variable_indirections maybe_ini
         statement = CCompound [] block_items internalNode
     in CFunDef specifiers declarator [] statement internalNode
 -- @-node:gcross.20090709200011.16:makeInitializer
+-- @+node:gcross.20090709200011.31:privatizeExpr
+privatizeExpr :: (Set String,Set String) -> CExpr -> CExpr
+privatizeExpr (global_variables,local_static_variables) var@(CVar ident _)
+    |   Set.member name local_static_variables
+            = CUnary CIndOp var internalNode
+    |   Set.member name global_variables
+            = CUnary CIndOp (CCall (makeVariableExpr $ "__access__" ++ name) [] internalNode) internalNode
+    |   otherwise
+            = var
+  where
+    name = identToString ident
+
+privatizeExpr special_variables expr = gmapT (mkT (privatizeExpr special_variables)) expr
+-- @-node:gcross.20090709200011.31:privatizeExpr
 -- @-node:gcross.20090709200011.20:Processing
 -- @-others
 -- @-node:gcross.20090708193517.2:@thin Privatization.hs

@@ -60,6 +60,12 @@ parseStatement code =
          Right ast -> ast
          Left err -> (error.show) err
 -- @-node:gcross.20090520220305.2:parseStatement
+-- @+node:gcross.20090709200011.32:parseExpression
+parseExpression code =
+    case execParser_ expressionP (inputStreamFromString code) nopos of
+         Right ast -> ast
+         Left err -> (error.show) err
+-- @-node:gcross.20090709200011.32:parseExpression
 -- @+node:gcross.20090413014846.20:parseTranslUnit
 parseTranlUnit code =
     case execParser_ translUnitP (inputStreamFromString code) nopos of

@@ -8,7 +8,7 @@
 -- @-node:gcross.20090523222635.27:<< Language extensions >>
 -- @nl
 
-module RunAnalysisTests(makeTests) where
+module RunAnalysisTests(tests) where
 
 -- @<< Imports >>
 -- @+node:gcross.20090523222635.24:<< Imports >>
@@ -24,6 +24,7 @@ import System
 import System.Directory
 import System.Exit
 import System.FilePath
+import System.IO
 import System.Process
 import Test.Framework
 import Test.Framework.Providers.HUnit
@@ -37,54 +38,59 @@ import Algorithm.GlobalVariablePrivatization.SizeAnalysis
 -- @nl
 
 -- @+others
--- @+node:gcross.20090523222635.25:makeTests
-makeTests = do
-    let gcc = newGCC "gcc"
-    current_directory <- getCurrentDirectory
-    let directories_to_search_for_sources =
-            [   current_directory </> "sources"
-            ,   current_directory </> "tests" </> "sources"
-            ]
-    source_directories_found <- filterM doesDirectoryExist directories_to_search_for_sources
-    let sourcepath =
-            case source_directories_found of
-                x:_ -> x
-                _ -> error $ "Unable to find sources for running analysis tests!  Tried '"
-                                    ++ show directories_to_search_for_sources
-
-        makeTest :: String -> String -> Test.Framework.Test
-        makeTest testname filename = testCase testname $
-            let source_filepath = sourcepath </> filename <.> "c"
-                analysis_filepath = source_filepath ++ "-analyze" <.> "c"
-                analysis_executable_filepath = source_filepath ++ "-analyze"
-            in do
-                doesFileExist source_filepath >>= (assertBool $ "Does the source file exist?")
-                preprocessor_result <- runPreprocessor gcc (CppArgs [] [] Nothing source_filepath Nothing)
-                whenLeft preprocessor_result $ \code -> assertFailure ("Preprocessing failed with exit code " ++ show code)
-                writeFile analysis_filepath
-                    .
-                    render
-                    .
-                    processStream
-                    .
-                    fromRight
-                    $
-                    preprocessor_result
-                (rawSystem "cc" [analysis_filepath,"-o",analysis_executable_filepath]) >>=
-                    assertEqual "Were we able to compute the analysis file?" ExitSuccess
-                (_, Just process_output, _, _) <-
-                    createProcess (proc analysis_executable_filepath []) { std_out = CreatePipe }
-                output_tree <- S.hGetContents process_output >>= return . parseTree' Nothing --'
-                whenLeft output_tree $ \error -> assertFailure ("Parsing XML output failed with error " ++ show error)
-                evaluate . xmlToAnalyzedModule . fromRight $ output_tree 
-                return ()
-
-    return
-        [   makeTest "simple" "source1"
-        ]
--- @-node:gcross.20090523222635.25:makeTests
+-- @+node:gcross.20090709200011.5:makeTestFromSource
+makeTestFromSource :: String -> Assertion
+makeTestFromSource source = do
+    temporary_directory <- getTemporaryDirectory
+    (source_filepath, source_handle) <- openTempFile temporary_directory "test.c"
+    (analysis_source_filepath, analysis_source_handle) <- openTempFile temporary_directory "test-analysis.c"
+    (analysis_executable_filepath, analysis_executable_handle) <-  openTempFile temporary_directory "test-analysis"
+    finally (do
+        hClose analysis_executable_handle
+        hPutStr source_handle source
+        hClose source_handle
+        let gcc = newGCC "gcc"
+        preprocessor_result <- runPreprocessor gcc (CppArgs [] [] Nothing source_filepath Nothing)
+        whenLeft preprocessor_result $ \code -> assertFailure ("Preprocessing failed with exit code " ++ show code)
+        hPutStr analysis_source_handle
+            .
+            render
+            .
+            processStream
+            .
+            fromRight
+            $
+            preprocessor_result
+        hClose analysis_source_handle
+        (rawSystem "cc" [analysis_source_filepath,"-o",analysis_executable_filepath]) >>=
+            assertEqual "Were we able to compute the analysis file?" ExitSuccess
+        (_, Just process_output, _, _) <-
+            createProcess (proc analysis_executable_filepath []) { std_out = CreatePipe }
+        output_tree <- S.hGetContents process_output >>= return . parseTree' Nothing --'
+        whenLeft output_tree $ \error -> assertFailure ("Parsing XML output failed with error " ++ show error)
+        evaluate . xmlToAnalyzedModule . fromRight $ output_tree 
+        return ()
+      ) (do
+        removeFile source_filepath
+        removeFile analysis_source_filepath
+        removeFile analysis_executable_filepath
+      )
+-- @-node:gcross.20090709200011.5:makeTestFromSource
+-- @+node:gcross.20090709200011.7:Tests
+tests =
+    [    testCase "1" test_1
+    ]
+-- @nonl
+-- @+node:gcross.20090709200011.6:test 1
+test_1 = makeTestFromSource . unlines $
+    ["int i;"
+    ,"static int j;"
+    ,"extern int k;"
+    ]
+-- @-node:gcross.20090709200011.6:test 1
+-- @-node:gcross.20090709200011.7:Tests
 -- @-others
 
-main = makeTests >>= defaultMain
+main = defaultMain tests
 -- @-node:gcross.20090523222635.23:@thin RunAnalysisTests.hs
 -- @-leo

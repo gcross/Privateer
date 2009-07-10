@@ -71,9 +71,11 @@ makeTestFromSource source = do
         evaluate . xmlToAnalyzedModule . fromRight $ output_tree 
         return ()
       ) (do
-        removeFile source_filepath
-        removeFile analysis_source_filepath
-        removeFile analysis_executable_filepath
+        mapM_ (\filepath -> doesFileExist filepath >>= (flip when (removeFile filepath)))
+            [   source_filepath
+            ,   analysis_source_filepath
+            ,   analysis_executable_filepath
+            ]
       )
 -- @-node:gcross.20090709200011.5:makeTestFromSource
 -- @+node:gcross.20090709200011.7:Tests

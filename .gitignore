@@ -1,5 +1,5 @@
 dist
-tests/.DS_Store
-tests/sources/.DS_Store
-tests/sources/source1.c-analyze
-tests/sources/source1.c-analyze.c
+.DS_Store
+*.o
+*.hi
+Setup

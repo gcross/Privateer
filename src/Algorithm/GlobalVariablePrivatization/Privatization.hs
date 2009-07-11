@@ -4,8 +4,6 @@
 
 -- @<< Language Extensions >>
 -- @+node:gcross.20090710174219.2:<< Language Extensions >>
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE RelaxedPolyRec #-}
 -- @-node:gcross.20090710174219.2:<< Language Extensions >>
 -- @nl
 
@@ -15,6 +13,7 @@ module Algorithm.GlobalVariablePrivatization.Privatization where
 -- @+node:gcross.20090709200011.2:<< Imports >>
 import Control.Arrow
 import Control.Monad
+import Control.Monad.Reader
 import Control.Monad.RWS
 
 import Data.DList (DList)
@@ -74,6 +73,14 @@ makeFloatExpr value = CConst (CFloatConst (cFloat value) internalNode)
 -- @+node:gcross.20090709200011.27:makeStringExpr
 makeStringExpr value = CConst (CStrConst (cString value) internalNode)
 -- @-node:gcross.20090709200011.27:makeStringExpr
+-- @+node:gcross.20090711085032.5:makePointerToGlobalVariable
+makePointerToGlobalVariable :: String -> Int -> CExpr
+makePointerToGlobalVariable module_data_access_function_name module_data_offset =
+    CBinary CAddOp
+        (CCall (makeVariableExpr module_data_access_function_name) [] internalNode)
+        (makeIntegerExpr module_data_offset)
+        internalNode
+-- @-node:gcross.20090711085032.5:makePointerToGlobalVariable
 -- @+node:gcross.20090709200011.54:makeCastedPointerToGlobalVariable
 makeCastedPointerToGlobalVariable :: String -> CDeclSpec -> [CDerivedDeclr] -> Int -> CExpr
 makeCastedPointerToGlobalVariable module_data_access_function_name typedef_spec variable_indirections module_data_offset =
@@ -82,10 +89,7 @@ makeCastedPointerToGlobalVariable module_data_access_function_name typedef_spec 
                         [typedef_spec]
                         [(Just cast_declr,Nothing,Nothing)]
                         internalNode
-        pointer_expr = CBinary CAddOp
-                            (CCall (makeVariableExpr module_data_access_function_name) [] internalNode)
-                            (makeIntegerExpr module_data_offset)
-                            internalNode
+        pointer_expr = makePointerToGlobalVariable module_data_access_function_name module_data_offset
     in CCast cast_decl pointer_expr internalNode
 -- @-node:gcross.20090709200011.54:makeCastedPointerToGlobalVariable
 -- @+node:gcross.20090709200011.53:addAccessorFunctionIndirections
@@ -110,6 +114,21 @@ makeTypedefDeclFrom (CDecl specification declarators _) =
         typedef_decl = CDecl new_specification new_declarators internalNode
     in (typedef_spec,typedef_decl)
 -- @-node:gcross.20090709200011.64:makeTypedefDeclFrom
+-- @+node:gcross.20090711085032.4:makeMemcpyStmt
+makeMemcpyStmt :: String -> CExpr -> CStat
+makeMemcpyStmt source_variable_name destination_expr = flip CExpr internalNode . Just $
+    CCall
+        (makeVariableExpr "memcpy")
+        [   destination_expr
+        ,   CUnary CAdrOp (makeVariableExpr source_variable_name) internalNode
+        ,   CSizeofExpr (makeVariableExpr source_variable_name) internalNode
+        ]
+        internalNode
+-- @-node:gcross.20090711085032.4:makeMemcpyStmt
+-- @+node:gcross.20090711085032.15:makeCompoundStmt
+makeCompoundStmt :: [CBlockItem] -> CStat
+makeCompoundStmt items = CCompound [] items internalNode
+-- @-node:gcross.20090711085032.15:makeCompoundStmt
 -- @+node:gcross.20090709200011.66:echo
 echo :: (a -> String) -> a -> a
 echo show value = trace (show value) $ value
@@ -152,14 +171,9 @@ makeInitializer variable_name typedef_spec variable_indirections maybe_init =
                             let specifiers = [static_specifier, typedef_spec]
                                 declarator = CDeclr (Just . internalIdent $ "__initial__value__") variable_indirections Nothing [] internalNode
                             in CDecl specifiers [(Just declarator ,maybe_init,Nothing)] internalNode
-                        copy_into_variable = flip CExpr internalNode . Just $
-                            CCall
-                                (makeVariableExpr "memcpy")
-                                [   CCall (makeVariableExpr $ "__access__" ++ variable_name) [] internalNode
-                                ,   CUnary CAdrOp (makeVariableExpr "__initial__value__") internalNode
-                                ,   CSizeofExpr (makeVariableExpr "__initial__value__") internalNode
-                                ]
-                                internalNode
+                        copy_into_variable = makeMemcpyStmt
+                                                "__initial__value__"
+                                                (CCall (makeVariableExpr $ "__access__" ++ variable_name) [] internalNode)
                     in  [CBlockDecl declare_default_value
                         ,CBlockStmt copy_into_variable
                         ]
@@ -316,6 +330,59 @@ privatizeFunction
     in CFunDef specification declarator declarations new_statement internalNode
 -- @-node:gcross.20090710174219.10:privatizeFunction
 -- @-node:gcross.20090709200011.59:Privatization Functions
+-- @+node:gcross.20090711085032.2:Initializer Functions
+-- @+node:gcross.20090711085032.14:makeInitializerStmt
+makeInitializerStmt :: String -> Reader FunctionProcessingEnvironment CStat
+makeInitializerStmt name =
+    liftM2 makePointerToGlobalVariable (asks globalModuleDataAccessorName) (asks localStaticVariableIndexMap >>= return . fromJust . Map.lookup name)
+    >>=
+    return . makeMemcpyStmt name
+-- @-node:gcross.20090711085032.14:makeInitializerStmt
+-- @+node:gcross.20090711085032.3:processBlockItem
+processBlockItem :: CBlockItem -> Reader FunctionProcessingEnvironment (DList CBlockItem)
+processBlockItem item =
+    case item of
+        CBlockStmt stat ->
+            forM (extractNestedBlocksFromStatement stat) (
+                mapM processBlockItem
+                >=>
+                return
+                    .
+                    (\list -> if null list then Nothing else Just (CBlockStmt . makeCompoundStmt $ list))
+                    .
+                    DList.toList
+                    .
+                    DList.concat
+            )
+            >>=
+            return . DList.fromList . catMaybes
+        CBlockDecl decl@(CDecl specification declarators _) ->
+            case extractStorage specification of
+                Just (CStatic _) ->
+                    mapM makeInitializerStmt (extractNamesFromDeclarators declarators)
+                    >>=
+                    (return
+                        .
+                        (item `DList.cons`)
+                        .
+                        DList.fromList
+                        .
+                        map CBlockStmt
+                    )
+                _ -> return $ DList.singleton item
+
+-- @-node:gcross.20090711085032.3:processBlockItem
+-- @+node:gcross.20090711085032.12:processStmt
+processStmt :: CStat -> Reader FunctionProcessingEnvironment CStat
+processStmt stat =
+    processBlockItem (CBlockStmt stat)
+    >>=
+    \new_items_dlist -> return $
+        case DList.toList new_items_dlist of
+            [CBlockStmt stmt] -> stmt
+            new_items -> CCompound [] new_items internalNode
+-- @-node:gcross.20090711085032.12:processStmt
+-- @-node:gcross.20090711085032.2:Initializer Functions
 -- @-node:gcross.20090709200011.55:Function Processing
 -- @-others
 -- @-node:gcross.20090708193517.2:@thin Privatization.hs

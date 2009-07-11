@@ -28,7 +28,7 @@ import Language.C
 
 -- @+others
 -- @+node:gcross.20090506115644.15:Utilities
--- @+node:gcross.20090506115644.13:extractNestedBlocks
+-- @+node:gcross.20090506115644.13:extractNestedBlocksFromStatement
 extractNestedBlocksFromStatement :: CStat -> [[CBlockItem]]
 extractNestedBlocksFromStatement stat =
     catMaybes . map extractBlockFromStatement $
@@ -50,7 +50,7 @@ extractNestedBlocksFromStatement stat =
             CBreak _ -> []
             CReturn _ _ -> []
             CAsm _ _ -> []
--- @-node:gcross.20090506115644.13:extractNestedBlocks
+-- @-node:gcross.20090506115644.13:extractNestedBlocksFromStatement
 -- @+node:gcross.20090506115644.16:extractStorage
 extractStorage :: [CDeclSpec] -> Maybe CStorageSpec
 extractStorage decl_specs =

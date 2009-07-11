@@ -14,8 +14,11 @@ module PrivatizationTests(tests) where
 -- @+node:gcross.20090709200011.10:<< Imports >>
 import Control.Exception
 import Control.Monad
+import Control.Monad.RWS
 import qualified Data.ByteString as S
 import Data.Either.Unwrap
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Language.C
@@ -75,12 +78,43 @@ makePrivatizeExprTest global_variables local_static_variables original_code priv
     .
     pretty
     .
-    privatizeExpr (global_variables,local_static_variables)
+    (\(x,_,_) -> x)
+    .
+    (\expr -> runRWS (privatizeExpr expr) undefined (global_variables,local_static_variables))
     .
     parseExpression
     $
     original_code
 -- @-node:gcross.20090709200011.35:makePrivatizeExprTest
+-- @+node:gcross.20090709200011.41:makePrivatizeStmtTest
+makePrivatizeStmtTest :: String -> Map String Int -> Set String -> Set String -> String -> String -> Assertion
+makePrivatizeStmtTest
+    module_data_accessor_name
+    local_static_variable_index_map
+    global_variables local_static_variables
+    original_code privatized_code
+    =
+    assertEqual "is the privatized code correct?" (unwords . words . render . pretty . parseStatement $ privatized_code)
+    .
+    unwords
+    .
+    words
+    .
+    render
+    .
+    pretty
+    .
+    (\(x,_,_) -> x)
+    .
+    (\stat -> runRWS (privatizeStmt stat)
+                    (FunctionProcessingEnvironment module_data_accessor_name local_static_variable_index_map)
+                    (global_variables,local_static_variables)
+    )
+    .
+    parseStatement
+    $
+    original_code
+-- @-node:gcross.20090709200011.41:makePrivatizeStmtTest
 -- @-node:gcross.20090709200011.36:Test makers
 -- @+node:gcross.20090709200011.12:Tests
 tests =
@@ -96,7 +130,7 @@ tests =
         let accessor_source = render . pretty $
                 let size_const = CConst (CIntConst (cInteger.toInteger $ 6) internalNode)
                     indirections = [CArrDeclr [] (CArrSize False size_const) internalNode]
-                in makeAccessor "getGlobals" False "global_variable" "global_variable_type" indirections 6
+                in makeAccessor "getGlobals" False "global_variable" (makeTypedefSpecifier "global_variable_type") indirections 6
             source = unlines
                 [""
                 ,"#include <stdio.h>"
@@ -129,7 +163,7 @@ tests =
                                     ,   makeFloatExpr 3.14
                                     ,   makeStringExpr "right"
                                     ] ] internalNode
-                    in makeInitializer "global_variable" "global_variable_type" [] (Just init)
+                    in makeInitializer "global_variable" (makeTypedefSpecifier "global_variable_type") [] (Just init)
                 source = unlines
                     [""
                     ,"#include <stdio.h>"
@@ -212,6 +246,66 @@ tests =
         -- @-others
         ]
     -- @-node:gcross.20090709200011.33:privatizeExpr
+    -- @+node:gcross.20090709200011.42:privatizeStmt
+    ,testGroup "privatizeStmt"
+        -- @    @+others
+        -- @+node:gcross.20090709200011.43:global variable
+        [testCase "global variable" $
+            makePrivatizeStmtTest undefined undefined (Set.singleton "var") Set.empty
+                "if (var == i) { return var; } else { return j; }"
+                "if (*__access__var() == i) { return *__access__var(); } else { return j; }"
+        -- @-node:gcross.20090709200011.43:global variable
+        -- @+node:gcross.20090709200011.44:local static variable
+        ,testCase "local static variable" $
+            makePrivatizeStmtTest undefined undefined Set.empty (Set.singleton "var")
+            "switch (var) { case 1: var = var + 1; case 2: ++var; }"
+            "switch (*var) { case 1: *var = *var + 1; case 2: ++ (*var); }"
+        -- @-node:gcross.20090709200011.44:local static variable
+        -- @+node:gcross.20090709200011.45:both
+        ,testCase "both" $
+            makePrivatizeStmtTest undefined undefined (Set.singleton "var") (Set.singleton "var")
+            "for (var = 0; var < 5; var++) { return var; }"
+            "for (*var = 0; *var < 5; (*var)++) { return *var; }"
+        -- @-node:gcross.20090709200011.45:both
+        -- @+node:gcross.20090709200011.46:neither
+        ,testCase "neither" $
+            makePrivatizeStmtTest undefined undefined (Set.singleton "var") (Set.singleton "var")
+            "if (nonvar) return 4;"
+            "if (nonvar) return 4;"
+        -- @-node:gcross.20090709200011.46:neither
+        -- @-others
+        ]
+    -- @-node:gcross.20090709200011.42:privatizeStmt
+    -- @+node:gcross.20090710174219.5:privatizeBlockItem
+    ,testGroup "privatizeBlockItem"
+        -- @    @+others
+        -- @+node:gcross.20090710174219.6:shadowing
+        [testCase "shadowing" $
+            makePrivatizeStmtTest undefined undefined (Set.singleton "var") (Set.singleton "var")
+            "{ var++; int var; var++; }"
+            "{ (*var)++; int var; var++; }"
+        -- @-node:gcross.20090710174219.6:shadowing
+        -- @+node:gcross.20090710174219.7:static declaration
+        ,testCase "static declaration" $
+            makePrivatizeStmtTest "getPtr" (Map.fromList [("var1",42),("var2",12)]) Set.empty Set.empty
+            "{ ++var; static int var1, *var2; ++var1; var2 = &var1; }"
+            "{ ++var; typedef int __type_of__var1; __type_of__var1 *var1 = (__type_of__var1*) (getPtr() + 42), **var2 = (__type_of__var1 **) (getPtr() + 12); ++ (*var1); *var2 = &(*var1); }"
+        -- @-node:gcross.20090710174219.7:static declaration
+        -- @+node:gcross.20090710174219.8:external global variable
+        ,testCase "external global variable" $
+            makePrivatizeStmtTest undefined undefined (Set.singleton "var") Set.empty
+            "{ var; extern int var; var; }"
+            "{ *__access__var(); extern int *__access__var(); *__access__var(); }"
+        -- @-node:gcross.20090710174219.8:external global variable
+        -- @+node:gcross.20090710174219.9:emerging from the shadow
+        ,testCase "emerging from the shadow" $
+            makePrivatizeStmtTest undefined undefined Set.empty (Set.singleton "var")
+            "{ if(1) { int var; var++; }; var++; }"
+            "{ if(1) { int var; var++; }; (*var)++; }"
+        -- @-node:gcross.20090710174219.9:emerging from the shadow
+        -- @-others
+        ]
+    -- @-node:gcross.20090710174219.5:privatizeBlockItem
     -- @-others
     ]
 -- @-node:gcross.20090709200011.12:Tests

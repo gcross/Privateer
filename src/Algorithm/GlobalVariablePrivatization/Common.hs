@@ -64,6 +64,12 @@ extractBlockFromStatement :: CStat -> Maybe [CBlockItem]
 extractBlockFromStatement (CCompound _ items _) = Just items
 extractBlockFromStatement _ = Nothing
 -- @-node:gcross.20090517181648.12:extractBlockFromStatement
+-- @+node:gcross.20090709200011.61:extractNamesFromDeclarators
+extractNamesFromDeclarators :: [(Maybe CDeclr,Maybe CInit,Maybe CExpr)] -> [String]
+extractNamesFromDeclarators = map extractName
+  where
+    extractName (Just (CDeclr (Just ident) _ _ _ _),_,_) = identToString ident
+-- @-node:gcross.20090709200011.61:extractNamesFromDeclarators
 -- @-node:gcross.20090506115644.15:Utilities
 -- @+node:gcross.20090523222635.16:Exceptions
 -- @+node:gcross.20090523222635.17:ParseException

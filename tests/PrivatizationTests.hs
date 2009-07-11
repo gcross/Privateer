@@ -115,6 +115,35 @@ makePrivatizeStmtTest
     $
     original_code
 -- @-node:gcross.20090709200011.41:makePrivatizeStmtTest
+-- @+node:gcross.20090710174219.12:makePrivatizeFunctionTest
+makePrivatizeFunctionTest :: String -> Map String Int -> Set String -> String -> String -> Assertion
+makePrivatizeFunctionTest
+    module_data_accessor_name
+    local_static_variable_index_map
+    global_variables
+    original_code privatized_code
+    =
+    assertEqual "is the privatized code correct?" (unwords . words . render . pretty . parseDeclaration $ privatized_code)
+    .
+    unwords
+    .
+    words
+    .
+    render
+    .
+    pretty
+    .
+    privatizeFunction
+        module_data_accessor_name
+        local_static_variable_index_map
+        global_variables
+    .
+    (\(CFDefExt x) -> x)
+    .
+    parseDeclaration
+    $
+    original_code
+-- @-node:gcross.20090710174219.12:makePrivatizeFunctionTest
 -- @-node:gcross.20090709200011.36:Test makers
 -- @+node:gcross.20090709200011.12:Tests
 tests =
@@ -306,6 +335,18 @@ tests =
         -- @-others
         ]
     -- @-node:gcross.20090710174219.5:privatizeBlockItem
+    -- @+node:gcross.20090710174219.13:privatizeFunction
+    ,testGroup "privatizeFunction"
+        -- @    @+others
+        -- @+node:gcross.20090710174219.14:shadowing
+        [testCase "shadowing" $
+            makePrivatizeFunctionTest "getPtr" (Map.fromList [("svar",1)]) (Set.fromList ["gvar","var"]) 
+            "void f(int var) { static int svar = 0; ++svar; return var + gvar + svar; }"
+            "void f(int var) { typedef int __type_of__svar; __type_of__svar *svar = (__type_of__svar*)(getPtr()+1); ++(*svar); return var + *__access__gvar() + *svar; }"
+        -- @-node:gcross.20090710174219.14:shadowing
+        -- @-others
+        ]
+    -- @-node:gcross.20090710174219.13:privatizeFunction
     -- @-others
     ]
 -- @-node:gcross.20090709200011.12:Tests

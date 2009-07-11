@@ -70,6 +70,10 @@ extractNamesFromDeclarators = map extractName
   where
     extractName (Just (CDeclr (Just ident) _ _ _ _),_,_) = identToString ident
 -- @-node:gcross.20090709200011.61:extractNamesFromDeclarators
+-- @+node:gcross.20090710174219.11:extractNamesFromDeclarations
+extractNamesFromDeclarations :: [CDecl] -> [String]
+extractNamesFromDeclarations declarations = declarations >>= extractNamesFromDeclarators . (\(CDecl _ declarators _) -> declarators)
+-- @-node:gcross.20090710174219.11:extractNamesFromDeclarations
 -- @-node:gcross.20090506115644.15:Utilities
 -- @+node:gcross.20090523222635.16:Exceptions
 -- @+node:gcross.20090523222635.17:ParseException

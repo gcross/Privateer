@@ -339,7 +339,7 @@ makeInitializerStmt name =
     return . makeMemcpyStmt name
 -- @-node:gcross.20090711085032.14:makeInitializerStmt
 -- @+node:gcross.20090711085032.3:processBlockItem
-processBlockItem :: CBlockItem -> Reader FunctionProcessingEnvironment (DList CBlockItem)
+processBlockItem :: CBlockItem -> Reader FunctionProcessingEnvironment [CBlockItem]
 processBlockItem item =
     case item of
         CBlockStmt stat ->
@@ -350,12 +350,10 @@ processBlockItem item =
                     .
                     (\list -> if null list then Nothing else Just (CBlockStmt . makeCompoundStmt $ list))
                     .
-                    DList.toList
-                    .
-                    DList.concat
+                    concat
             )
             >>=
-            return . DList.fromList . catMaybes
+            return . catMaybes
         CBlockDecl decl@(CDecl specification declarators _) ->
             case extractStorage specification of
                 Just (CStatic _) ->
@@ -363,14 +361,11 @@ processBlockItem item =
                     >>=
                     (return
                         .
-                        (item `DList.cons`)
-                        .
-                        DList.fromList
+                        (item:)
                         .
                         map CBlockStmt
                     )
-                _ -> return $ DList.singleton item
-
+                _ -> return $ [item]
 -- @-node:gcross.20090711085032.3:processBlockItem
 -- @+node:gcross.20090711085032.12:processStmt
 processStmt :: CStat -> Reader FunctionProcessingEnvironment CStat
@@ -378,7 +373,7 @@ processStmt stat =
     processBlockItem (CBlockStmt stat)
     >>=
     \new_items_dlist -> return $
-        case DList.toList new_items_dlist of
+        case new_items_dlist of
             [CBlockStmt stmt] -> stmt
             new_items -> CCompound [] new_items internalNode
 -- @-node:gcross.20090711085032.12:processStmt

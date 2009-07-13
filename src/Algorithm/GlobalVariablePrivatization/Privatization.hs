@@ -382,6 +382,31 @@ processStmt stat =
             [CBlockStmt stmt] -> stmt
             new_items -> CCompound [] new_items internalNode
 -- @-node:gcross.20090711085032.12:processStmt
+-- @+node:gcross.20090711085032.21:processFunction
+processFunction :: String -> Map String Int -> CFunDef -> CFunDef
+processFunction
+    module_data_accessor_name
+    local_static_variable_index_map
+    (CFunDef _ declarator declarations statement _)
+    =
+    let CDeclr (Just ident) ((CFunDeclr args _ _):_) _ _ _ = declarator
+        new_declarator = CDeclr (Just ident) [CFunDeclr (Left []) [] internalNode] Nothing [] internalNode
+        argument_declarations =
+            case args of
+                Left _ -> declarations
+                Right (declarations,_) -> declarations
+        processed_statement = runReader (processStmt statement)
+                                (FunctionProcessingEnvironment module_data_accessor_name local_static_variable_index_map)
+        new_statement = if null argument_declarations
+                            then processed_statement
+                            else CCompound [] ((map CBlockDecl argument_declarations)++(
+                                    case processed_statement of
+                                        CCompound labels items _ -> items
+                                        other -> [CBlockStmt other]
+                                )) internalNode
+        new_specification = [CStorageSpec (CStatic internalNode), CTypeQual (CInlineQual internalNode), CTypeSpec (CVoidType internalNode)]
+    in CFunDef new_specification new_declarator [] new_statement internalNode
+-- @-node:gcross.20090711085032.21:processFunction
 -- @-node:gcross.20090711085032.2:Initializer Functions
 -- @-node:gcross.20090709200011.55:Function Processing
 -- @-others

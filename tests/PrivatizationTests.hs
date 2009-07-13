@@ -173,6 +173,33 @@ makeProcessStmtTest
     $
     original_code
 -- @-node:gcross.20090711085032.9:makeProcessStmtTest
+-- @+node:gcross.20090711085032.22:makeProcessFunctionTest
+makeProcessFunctionTest :: String -> Map String Int -> String -> String -> Assertion
+makeProcessFunctionTest
+    module_data_accessor_name
+    local_static_variable_index_map
+    original_code processed_code
+    =
+    assertEqual "is the processed code correct?" (unwords . words . render . pretty . parseDeclaration $ processed_code)
+    .
+    unwords
+    .
+    words
+    .
+    render
+    .
+    pretty
+    .
+    CFDefExt
+    .
+    processFunction module_data_accessor_name local_static_variable_index_map
+    .
+    (\(CFDefExt x) -> x)
+    .
+    parseDeclaration
+    $
+    original_code
+-- @-node:gcross.20090711085032.22:makeProcessFunctionTest
 -- @-node:gcross.20090709200011.36:Test makers
 -- @+node:gcross.20090709200011.12:Tests
 tests =
@@ -420,6 +447,30 @@ tests =
             -- @-others
             ]
         -- @-node:gcross.20090711085032.10:processStmt
+        -- @+node:gcross.20090711085032.23:processFunction
+        ,testGroup "processFunction"
+            -- @    @+others
+            -- @+node:gcross.20090711085032.24:single statement
+            [testCase "single statement" $
+                makeProcessFunctionTest undefined undefined
+                    "const int f() { return i; }"
+                    "static inline void f() { }"
+            -- @-node:gcross.20090711085032.24:single statement
+            -- @+node:gcross.20090711085032.25:arguments
+            ,testCase "arguments" $
+                makeProcessFunctionTest undefined undefined
+                    "const int f(int a, restrict char* b, const short* c) { if (a == b) { return c; } else { ++(*b); }; }"
+                    "static inline void f() { int a; restrict char* b; const short* c; }"
+            -- @-node:gcross.20090711085032.25:arguments
+            -- @+node:gcross.20090711085032.26:arguments and statics
+            ,testCase "arguments and statics" $
+                makeProcessFunctionTest "getPtr" (Map.singleton "meaning_of_life" 24)
+                    "static char* f(void ** data) { static int meaning_of_life = 42; }"
+                    "static inline void f() { void ** data; static int meaning_of_life = 42; memcpy(getPtr()+24,&meaning_of_life,sizeof(meaning_of_life)); }"
+            -- @-node:gcross.20090711085032.26:arguments and statics
+            -- @-others
+            ]
+        -- @-node:gcross.20090711085032.23:processFunction
         -- @-others
         ]
     -- @-node:gcross.20090711085032.8:Initializer Construction

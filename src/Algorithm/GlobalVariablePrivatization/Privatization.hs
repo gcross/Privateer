@@ -312,11 +312,11 @@ privatizeBlockItem privatized_block_items item
                     return $ (privatized_block_items `DList.snoc` (CBlockDecl typedef_decl)) `DList.snoc` (CBlockDecl variable_decl)
 -- @-node:gcross.20090709200011.47:privatizeBlockItem
 -- @+node:gcross.20090710174219.10:privatizeFunction
-privatizeFunction :: String -> Map String Int -> Set String -> CFunDef -> CFunDef
+privatizeFunction :: String -> Set String -> Map String Int -> CFunDef -> CFunDef
 privatizeFunction
     module_data_accessor_name
-    local_static_variable_index_map
     global_variables
+    local_static_variable_index_map
     (CFunDef specification declarator declarations statement _)
     =
     let CDeclr (Just ident) ((CFunDeclr args _ _):_) _ _ _ = declarator

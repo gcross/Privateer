@@ -141,8 +141,8 @@ makePrivatizeFunctionTest
     .
     privatizeFunction
         module_data_accessor_name
-        local_static_variable_index_map
         global_variables
+        local_static_variable_index_map
     .
     (\(CFDefExt x) -> x)
     .

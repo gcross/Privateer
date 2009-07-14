@@ -31,7 +31,7 @@ import Algorithm.GlobalVariablePrivatization.Common
 -- @+others
 -- @+node:gcross.20090710174219.15:Parsers
 -- @+node:gcross.20090413014846.20:parseTranslUnit
-parseTranlUnit code =
+parseTranslUnit code =
     case execParser_ translUnitP (inputStreamFromString code) nopos of
          Right ast -> ast
          Left err -> (error.show) err

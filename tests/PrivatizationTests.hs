@@ -71,6 +71,31 @@ makeTestFromSource source = do
             ]
       )
 -- @-node:gcross.20090709200011.11:makeTestFromSource
+-- @+node:gcross.20090711085032.33:makeTestFromPrivatizedSource
+makeTestFromPrivatizedSource :: String -> Set String -> Map String Int -> Map String (Map String Int) -> Bool -> String -> String -> Assertion
+makeTestFromPrivatizedSource
+    module_data_accessor_name
+    global_variables
+    global_variable_index_map
+    local_static_variable_index_map
+    print_source
+    prelude
+    =
+    makeTestFromSource
+    .
+    (if print_source then echo id else id)
+    .
+    (prelude ++)
+    .
+    render
+    .
+    pretty
+    .
+    processTranslUnit module_data_accessor_name global_variables global_variable_index_map local_static_variable_index_map
+    .
+    parseTranslUnit
+-- @nonl
+-- @-node:gcross.20090711085032.33:makeTestFromPrivatizedSource
 -- @+node:gcross.20090709200011.35:makePrivatizeExprTest
 makePrivatizeExprTest :: Set String -> Set String -> String -> String -> Assertion
 makePrivatizeExprTest global_variables local_static_variables original_code privatized_code =
@@ -200,6 +225,33 @@ makeProcessFunctionTest
     $
     original_code
 -- @-node:gcross.20090711085032.22:makeProcessFunctionTest
+-- @+node:gcross.20090711085032.28:makeProcessToplevelDeclarationTest
+makeProcessToplevelDeclarationTest :: String -> Set String -> Map String Int -> Map String (Map String Int) -> String -> String -> Assertion
+makeProcessToplevelDeclarationTest
+    module_data_accessor_name
+    global_variables
+    global_variable_index_map
+    local_static_variable_index_map
+    original_code processed_code
+    =
+    assertEqual "is the processed code correct?" (unwords . words . render . pretty . parseTranslUnit $ processed_code)
+    .
+    unwords
+    .
+    words
+    .
+    render
+    .
+    pretty
+    .
+    (flip CTranslUnit internalNode)
+    .
+    processToplevelDeclaration module_data_accessor_name global_variables global_variable_index_map local_static_variable_index_map
+    .
+    parseDeclaration
+    $
+    original_code
+-- @-node:gcross.20090711085032.28:makeProcessToplevelDeclarationTest
 -- @-node:gcross.20090709200011.36:Test makers
 -- @+node:gcross.20090709200011.12:Tests
 tests =
@@ -247,6 +299,10 @@ tests =
             [testCase "global variable" $
                 makePrivatizeExprTest (Set.singleton "var") Set.empty "1 + var * 2" "1 + *__access__var() * 2"
             -- @-node:gcross.20090709200011.34:global variable
+            -- @+node:gcross.20090711085032.37:nested global variable
+            ,testCase "nested global variable" $
+                makePrivatizeExprTest (Set.singleton "c") Set.empty "strcpy(c, d)" "strcpy(*__access__c(), d)"
+            -- @-node:gcross.20090711085032.37:nested global variable
             -- @+node:gcross.20090709200011.37:local static variable
             ,testCase "local static variable" $
                 makePrivatizeExprTest Set.empty (Set.singleton "var") "var * 2 == 5 ? i : j" "*var * 2 == 5 ? i : j"
@@ -325,8 +381,14 @@ tests =
         -- @+node:gcross.20090710174219.13:privatizeFunction
         ,testGroup "privatizeFunction"
             -- @    @+others
+            -- @+node:gcross.20090711085032.36:simple
+            [testCase "function" $
+                makePrivatizeFunctionTest undefined Map.empty (Set.singleton "c")
+                    "static char* f() { strcpy(c,d); }"
+                    "static char* f() { strcpy(*__access__c(),d); }"
+            -- @-node:gcross.20090711085032.36:simple
             -- @+node:gcross.20090710174219.14:shadowing
-            [testCase "shadowing" $
+            ,testCase "shadowing" $
                 makePrivatizeFunctionTest "getPtr" (Map.fromList [("svar",1)]) (Set.fromList ["gvar","var"]) 
                 "void f(int var) { static int svar = 0; ++svar; return var + gvar + svar; }"
                 "void f(int var) { typedef int __type_of__svar; __type_of__svar *svar = (__type_of__svar*)(getPtr()+1); ++(*svar); return var + *__access__gvar() + *svar; }"
@@ -471,6 +533,52 @@ tests =
             -- @-others
             ]
         -- @-node:gcross.20090711085032.23:processFunction
+        -- @+node:gcross.20090711085032.29:processToplevelDeclaration
+        ,testGroup "processToplevelDeclaration"
+            -- @    @+others
+            -- @+node:gcross.20090711085032.30:external declaration
+            [testCase "external declaration" $
+                makeProcessToplevelDeclarationTest undefined (Set.singleton "ext_var") undefined undefined
+                    "extern char var, ext_var;"
+                    "extern char var, *__access__ext_var();"
+            -- @-node:gcross.20090711085032.30:external declaration
+            -- @+node:gcross.20090711085032.35:function
+            ,testCase "function" $
+                makeProcessToplevelDeclarationTest undefined (Set.singleton "c") undefined (Map.singleton "f" Map.empty)
+                    "static char* f() { strcpy(c,d); }"
+                    "static char* f() { strcpy(*__access__c(),d); }"
+            -- @-node:gcross.20090711085032.35:function
+            -- @+node:gcross.20090711085032.34:static variable
+            ,testCase "static variable" $
+                makeTestFromPrivatizedSource "getPtr" (Set.singleton "c") (Map.singleton "c" 3) (Map.singleton "main" Map.empty) False
+                (unlines
+                    ["#include <stdlib.h>"
+                    ,"#include <stdio.h>"
+                    ,"#include <string.h>"
+                    ,""
+                    ,"char global_array[20];"
+                    ,"void* getPtr() { return global_array; }"
+                    ])
+                (unlines
+                    ["char c[7] = \"hello!\";"
+                    ,""
+                    ,"int main() {"
+                    ,"  memset(global_array,0,sizeof(global_array));"
+                    ,"  __initialize__c();"
+                    ,"  if(strcmp(c,\"hello!\") != 0) {"
+                    ,"    printf(\"expected c='hello!', but saw '%s'\",c);"
+                    ,"    return -1;"
+                    ,"  }"
+                    ,"  if(strcmp(global_array+3,\"hello!\") != 0) {"
+                    ,"    printf(\"expected global_array+3='hello!', but saw '%s'\",c);"
+                    ,"    return -1;"
+                    ,"  }"
+                    ,"}"
+                    ])
+            -- @-node:gcross.20090711085032.34:static variable
+            -- @-others
+            ]
+        -- @-node:gcross.20090711085032.29:processToplevelDeclaration
         -- @-others
         ]
     -- @-node:gcross.20090711085032.8:Initializer Construction

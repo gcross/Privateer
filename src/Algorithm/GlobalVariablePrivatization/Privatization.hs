@@ -11,6 +11,8 @@ module Algorithm.GlobalVariablePrivatization.Privatization where
 
 -- @<< Imports >>
 -- @+node:gcross.20090709200011.2:<< Imports >>
+import Prelude hiding (map,(++),null,concat,filter,head)
+
 import Control.Arrow
 import Control.Monad
 import Control.Monad.Reader
@@ -18,8 +20,8 @@ import Control.Monad.RWS
 
 import Data.DList (DList)
 import qualified Data.DList as DList
+import Data.List.Stream
 import Data.Generics
-import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
@@ -193,6 +195,61 @@ processExtern global_variables (CDecl specification declarators _)
         new_ident = internalIdent . ("__access__"++) . identToString $ ident
         new_indirections = addAccessorFunctionIndirectionsTo indirections
 -- @-node:gcross.20090709200011.48:processExtern
+-- @+node:gcross.20090711085032.20:processToplevelDeclaration
+processToplevelDeclaration :: String -> Set String -> Map String Int -> Map String (Map String Int) -> CExtDecl -> [CExtDecl]
+processToplevelDeclaration _ _ _ _ decl@(CAsmExt _) = [decl]
+processToplevelDeclaration module_data_accessor_name global_variables _ function_static_variables (CFDefExt fundef) =
+    let CFunDef _ (CDeclr (Just ident) _ _ _ _) _ _ _ = fundef
+        local_static_variables = fromMaybe (Map.empty) (Map.lookup (identToString ident) function_static_variables)
+        privatized_function = CFDefExt $ privatizeFunction module_data_accessor_name global_variables local_static_variables fundef
+    in privatized_function :
+        if Map.null local_static_variables
+            then []
+            else (CFDefExt $ processFunction module_data_accessor_name local_static_variables fundef) : []
+processToplevelDeclaration module_data_accessor_name global_variables global_variable_index_map _ ext_decl@(CDeclExt decl@(CDecl specification declarators _)) =
+    case extractStorage specification of
+        Just (CTypedef _) -> [ext_decl]
+        Just (CExtern _) -> [CDeclExt . processExtern global_variables $ decl]
+        Just (CStatic _) -> processGlobalsDeclaration True
+        Just (CAuto _) -> processGlobalsDeclaration False
+        Nothing -> processGlobalsDeclaration False
+  where
+    processGlobalsDeclaration is_static =
+        let function_declarators = filter isFunctionDeclarator declarators
+            functions_declaration = CDeclExt $ CDecl [typedef_spec] function_declarators internalNode
+            prepend_functions_declaration = if null function_declarators then id else (functions_declaration:)
+            variable_declarations =
+                concat
+                .
+                map processVariable
+                .
+                filter isVariableDeclarator
+                $
+                declarators
+        in (CDeclExt typedef_declaration) : (prepend_functions_declaration variable_declarations)
+      where
+        (typedef_spec,typedef_declaration) = makeTypedefDeclFrom decl
+
+        isFunctionDeclarator :: (Maybe CDeclr, Maybe CInit, Maybe CExpr) -> Bool
+        isFunctionDeclarator (Just (CDeclr _ indirections _ _ _),_,_) =
+            case indirections of 
+                ((CFunDeclr _ _ _):_) -> True
+                _ -> False
+
+        isVariableDeclarator = not . isFunctionDeclarator
+
+        processVariable :: (Maybe CDeclr, Maybe CInit, Maybe CExpr) -> [CExtDecl]
+        processVariable (Just (CDeclr (Just ident) variable_indirections _ _ _), maybe_init, _) =
+            let variable_name = identToString ident 
+                variable_offset = fromJust (Map.lookup variable_name global_variable_index_map)
+                variable_accessor = makeAccessor module_data_accessor_name is_static variable_name typedef_spec variable_indirections variable_offset
+                variable_initializer = makeInitializer variable_name typedef_spec variable_indirections maybe_init
+            in map CFDefExt [variable_accessor, variable_initializer]
+-- @-node:gcross.20090711085032.20:processToplevelDeclaration
+-- @+node:gcross.20090711085032.32:processTranslUnit
+processTranslUnit :: String -> Set String -> Map String Int -> Map String (Map String Int) -> CTranslUnit -> CTranslUnit
+processTranslUnit a b c d (CTranslUnit decls _) = (flip CTranslUnit internalNode) . concat . map (processToplevelDeclaration a b c d) $ decls
+-- @-node:gcross.20090711085032.32:processTranslUnit
 -- @-node:gcross.20090709200011.20:Processing
 -- @+node:gcross.20090709200011.55:Function Processing
 -- @+node:gcross.20090709200011.56:Types
@@ -244,7 +301,10 @@ privatizeExpr var@(CVar ident _) =
   where
     name = identToString ident
 
-privatizeExpr expr = gmapM (mkM privatizeExpr) expr
+privatizeExpr expr = privatizeSubtermsOf expr
+  where
+    privatizeSubtermsOf :: GenericM FunctionProcessingMonad
+    privatizeSubtermsOf = gmapM (privatizeSubtermsOf `extM` privatizeExpr)
 -- @-node:gcross.20090709200011.31:privatizeExpr
 -- @+node:gcross.20090709200011.40:privatizeStmt
 privatizeStmt :: CStat -> FunctionProcessingMonad CStat

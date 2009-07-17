@@ -12,6 +12,7 @@ module Main where
 
 -- @<< Imports >>
 -- @+node:gcross.20090615091711.23:<< Imports >>
+import Control.Arrow ((&&&),second)
 import Control.Exception
 import Control.Monad
 import Control.Monad.Trans
@@ -29,7 +30,7 @@ import Debug.Trace
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit
-import Test.Framework.Providers.QuickCheck
+import Test.Framework.Providers.QuickCheck2
 import Test.QuickCheck
 
 import Algorithm.VariableLayout
@@ -50,13 +51,13 @@ assertThrowsError expr =
 -- @+node:gcross.20090615091711.25:SmallInt
 newtype SmallInt = SI Int deriving (Show,Eq)
 instance Arbitrary SmallInt where
-    arbitrary = choose (0,31) >>= return.SI
-    coarbitrary (SI n) = coarbitrary n
+    arbitrary = choose (0,bitSize (undefined :: Offset) - 1) >>= return.SI
+    -- coarbitrary (SI n) = coarbitrary n
 -- @-node:gcross.20090615091711.25:SmallInt
 -- @+node:gcross.20090615091711.43:Word
 instance Arbitrary Word where
   arbitrary     = sized $ \n -> choose (0,n) >>= return.fromIntegral
-  coarbitrary n = variant.fromIntegral $ 2*n
+  -- coarbitrary n = variant.fromIntegral $ 2*n
 -- @-node:gcross.20090615091711.43:Word
 -- @+node:gcross.20090615091711.41:BlockList
 newtype BlockListType = BL [(Alignment,Seq Offset)] deriving (Show,Eq)
@@ -79,14 +80,28 @@ instance Arbitrary BlockListType where
         )
         .
         zip [0..]
-    --coarbitrary (SI n) = coarbitrary n
+    -- coarbitrary (SI n) = coarbitrary n
 -- @-node:gcross.20090615091711.41:BlockList
 -- @-node:gcross.20090615091711.40:Generators
 -- @+node:gcross.20090615091711.19:Tests
 tests =
     -- @    @+others
+    -- @+node:gcross.20090715105401.10:minimumAlignment
+    [testGroup "minimumAlignment"
+        -- @    @+others
+        -- @+node:gcross.20090715105401.11:not too large
+        [testProperty "not too large" $
+            \(size :: Size) -> size > 0 ==> size `shiftR` (minimumAlignment size - 1) /= 0
+        -- @-node:gcross.20090715105401.11:not too large
+        -- @+node:gcross.20090715105401.12:not too small
+        ,testProperty "not too small" $
+            \(size :: Size) -> size `shiftR` (minimumAlignment size) == 0
+        -- @-node:gcross.20090715105401.12:not too small
+        -- @-others
+        ]
+    -- @-node:gcross.20090715105401.10:minimumAlignment
     -- @+node:gcross.20090615091711.20:fragmentBlocks
-    [testGroup "fragmentBlocks"
+    ,testGroup "fragmentBlocks"
         -- @    @+others
         -- @+node:gcross.20090615091711.21:blocks have advertized alignment
         [testProperty "blocks have advertized alignment" $
@@ -144,31 +159,74 @@ tests =
     ,testGroup "allocateBlock"
         -- @    @+others
         -- @+node:gcross.20090615091711.35:null
-        [testCase "null" $ assertEqual "is the correct result returned?" Nothing (allocateBlock 0 1 [])
+        [testCase "null" $ assertEqual "is the correct result returned?" Nothing (allocateBlock [] (0,1))
         -- @-node:gcross.20090615091711.35:null
         -- @+node:gcross.20090615091711.36:simplest
         ,testCase "simplest" $
             assertEqual "is the correct offset returned?"
                 (Just 0)
-                (fmap snd . allocateBlock 0 1 $ [(0,Seq.singleton 0)])
+                (fmap snd . allocateBlock [(0,Seq.singleton 0)] $ (0,1))
         -- @-node:gcross.20090615091711.36:simplest
+        -- @+node:gcross.20090715105401.8:always successful with large block (1)
+        ,testProperty "always successful with large block (1)" $
+            \((SI requested_alignment,requested_size) :: (SmallInt,Size)) -> bit requested_alignment >= requested_size ==>
+                isJust . allocateBlock initialBlockList $ (requested_alignment,requested_size)
+        -- @-node:gcross.20090715105401.8:always successful with large block (1)
+        -- @+node:gcross.20090715105401.13:always successful with large block (2)
+        ,testProperty "always successful with large block (2)" $
+            \((requested_size :: Size)) -> 
+                isJust . allocateBlock initialBlockList $ (minimumAlignment requested_size,requested_size)
+        -- @-node:gcross.20090715105401.13:always successful with large block (2)
         -- @+node:gcross.20090615091711.44:correct alignment returned
         ,testProperty "correct alignment returned" $
             \((SI requested_alignment,requested_size,BL blocks) :: (SmallInt,Offset,BlockListType)) ->
-                case allocateBlock requested_alignment requested_size blocks of
+                case allocateBlock blocks (requested_alignment,requested_size) of
                     Nothing -> True
                     Just (_,offset) -> (offset == offset `makeAligned` requested_alignment)
         -- @-node:gcross.20090615091711.44:correct alignment returned
         -- @+node:gcross.20090618135417.2:size of free space is reduced
         ,testProperty "size of free space is reduced" $
             \((SI requested_alignment,requested_size,BL blocks) :: (SmallInt,Offset,BlockListType)) ->
-                case allocateBlock requested_alignment requested_size blocks of
+                case allocateBlock blocks (requested_alignment,requested_size) of
                     Nothing -> True
                     Just (new_blocks,_) -> totalSpaceInBlocks new_blocks == totalSpaceInBlocks blocks - requested_size
         -- @-node:gcross.20090618135417.2:size of free space is reduced
         -- @-others
         ]
     -- @-node:gcross.20090615091711.34:allocateBlock
+    -- @+node:gcross.20090715105401.14:allocateNamedBlocks
+    ,testGroup "allocateNamedBlocks"
+        -- @    @+others
+        -- @+node:gcross.20090715105401.15:correct alignment returned
+        [testProperty "correct alignment returned" $
+            \(sizes :: [Size]) ->
+                let variables = zip [0..] sizes
+                    requests = map (second (minimumAlignment &&& id)) variables
+                in case allocateNamedBlocks initialBlockList requests of
+                    Nothing -> True
+                    Just (_,offsets) -> all (\(name,offset) -> offset == offset `makeAligned` (minimumAlignment $ fromJust $ lookup name variables)) offsets
+        -- @-node:gcross.20090715105401.15:correct alignment returned
+        -- @+node:gcross.20090715105401.16:size of free space is reduced (1)
+        ,testProperty "size of free space is reduced (1)" $
+            \(sizes :: [Size]) ->
+                let variables = zip [0..] sizes
+                    requests = map (second (minimumAlignment &&& id)) variables
+                in case allocateNamedBlocks initialBlockList requests of
+                    Nothing -> True
+                    Just (new_blocks,_) -> (totalSpaceInBlocks new_blocks :: Integer) == (bit . fst . head $ initialBlockList) - toInteger (sum sizes)
+        -- @-node:gcross.20090715105401.16:size of free space is reduced (1)
+        -- @+node:gcross.20090715105401.17:size of free space is reduced (1)
+        ,testProperty "size of free space is reduced (2)" $
+            \((sizes,BL old_blocks) :: ([Size],BlockListType)) ->
+                let variables = zip [0..] sizes
+                    requests = map (second (minimumAlignment &&& id)) variables
+                in case allocateNamedBlocks old_blocks requests of
+                    Nothing -> True
+                    Just (new_blocks,_) -> (totalSpaceInBlocks new_blocks :: Integer) == (totalSpaceInBlocks old_blocks :: Integer) - toInteger (sum sizes)
+        -- @-node:gcross.20090715105401.17:size of free space is reduced (1)
+        -- @-others
+        ]
+    -- @-node:gcross.20090715105401.14:allocateNamedBlocks
     -- @-others
     ]
 

@@ -224,6 +224,15 @@ tests =
                     Nothing -> True
                     Just (new_blocks,_) -> (totalSpaceInBlocks new_blocks :: Integer) == (totalSpaceInBlocks old_blocks :: Integer) - toInteger (sum sizes)
         -- @-node:gcross.20090715105401.17:size of free space is reduced (2)
+        -- @+node:gcross.20090715105401.22:total space > space allocated
+        ,testProperty "total space > space allocated" $
+            \(sizes :: [Size]) ->
+                let variables = zip [0..] (filter (>0) sizes)
+                    requests = map (second (minimumAlignment &&& id)) variables
+                in (not . null) variables ==> case allocateNamedBlocks initialBlockList requests of
+                    Nothing -> True
+                    Just (new_blocks,offsets) -> totalSpaceRequired variables offsets >= sum sizes
+        -- @-node:gcross.20090715105401.22:total space > space allocated
         -- @-others
         ]
     -- @-node:gcross.20090715105401.14:allocateNamedBlocks

@@ -15,6 +15,7 @@ import qualified Data.Foldable as Foldable
 import Data.Function
 import qualified Data.List as List
 import Data.List.PointedList
+import qualified Data.Map as Map
 import Data.Sequence (Seq, (|>), ViewL(EmptyL,(:<)))
 import qualified Data.Sequence as Seq
 import Data.Word
@@ -125,6 +126,13 @@ allocateNamedBlocks block_list named_requests =
 totalSpaceInBlocks :: (Integral a, Bits a) => BlockList -> a
 totalSpaceInBlocks = sum . map (\(alignment,offsets) -> ((bit alignment) * (fromIntegral . toInteger . Seq.length $ offsets)))
 -- @-node:gcross.20090615091711.39:totalSpaceInBlocks
+-- @+node:gcross.20090715105401.21:totalSpaceRequired
+totalSpaceRequired :: Ord a => [(a,Size)] -> [(a,Offset)] -> Size
+totalSpaceRequired sizes offsets =
+    let sizes_map = Map.fromList sizes
+        offsets_map = Map.fromList offsets
+    in maximum . Map.elems $ Map.unionWith (+) sizes_map offsets_map
+-- @-node:gcross.20090715105401.21:totalSpaceRequired
 -- @-node:gcross.20090715105401.2:Algorithm functions
 -- @+node:gcross.20090715105401.4:Helper functions
 -- @+node:gcross.20090715105401.9:minimumAlignment

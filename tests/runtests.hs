@@ -215,7 +215,7 @@ tests =
                     Nothing -> True
                     Just (new_blocks,_) -> (totalSpaceInBlocks new_blocks :: Integer) == (bit . fst . head $ initialBlockList) - toInteger (sum sizes)
         -- @-node:gcross.20090715105401.16:size of free space is reduced (1)
-        -- @+node:gcross.20090715105401.17:size of free space is reduced (1)
+        -- @+node:gcross.20090715105401.17:size of free space is reduced (2)
         ,testProperty "size of free space is reduced (2)" $
             \((sizes,BL old_blocks) :: ([Size],BlockListType)) ->
                 let variables = zip [0..] sizes
@@ -223,7 +223,7 @@ tests =
                 in case allocateNamedBlocks old_blocks requests of
                     Nothing -> True
                     Just (new_blocks,_) -> (totalSpaceInBlocks new_blocks :: Integer) == (totalSpaceInBlocks old_blocks :: Integer) - toInteger (sum sizes)
-        -- @-node:gcross.20090715105401.17:size of free space is reduced (1)
+        -- @-node:gcross.20090715105401.17:size of free space is reduced (2)
         -- @-others
         ]
     -- @-node:gcross.20090715105401.14:allocateNamedBlocks

@@ -100,7 +100,7 @@ allocateBlock block_list (requested_alignment,requested_size)
                                         Just previous_block_zipper -> go2 previous_block_zipper
                                 | block_alignment == fragment_alignment =
                                     (focusA^=(block_alignment,block_offsets |> fragment_offset)) block_zipper
-                                | block_alignment < fragment_alignment =
+                                | otherwise = -- block_alignment < fragment_alignment =
                                     insertRight block_with_only_this_fragment block_zipper
                               where
                                 (block_alignment,block_offsets) = focus block_zipper

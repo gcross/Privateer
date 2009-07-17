@@ -20,6 +20,6 @@ Library
                     data-accessor >= 0.2.1
   Hs-Source-Dirs:   .
   Exposed-Modules:  Algorithm.VariableLayout
-  GHC-Options:      -Wall
+  GHC-Options:      -Wall -fno-warn-name-shadowing
 -- @-node:gcross.20090615091711.15:@thin greedy-variable-layout.cabal
 -- @-leo

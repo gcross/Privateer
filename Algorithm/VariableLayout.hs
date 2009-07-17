@@ -29,6 +29,8 @@ type Size = Offset
 type Alignment = Int
 type Request = (Alignment,Size)
 type RequestList = [Request]
+type NamedRequest a = (a,Request)
+type NamedRequestList a = [NamedRequest a]
 type BlockList = [(Alignment,Seq Offset)]
 type BlockZipper = PointedList (Alignment,Seq Offset)
 -- @-node:gcross.20090615091711.13:<< Types >>
@@ -117,7 +119,7 @@ allocateBlocks initial_blocklist requests = go requests (initial_blocklist,Seq.e
         allocateBlock block_list request >>= go remaining_requests . second (offsets |>)
 -- @-node:gcross.20090715105401.5:allocateBlocks
 -- @+node:gcross.20090715105401.6:allocateNamedBlocks
-allocateNamedBlocks :: BlockList -> [(a,Request)] -> Maybe (BlockList,[(a,Offset)])
+allocateNamedBlocks :: BlockList -> NamedRequestList a -> Maybe (BlockList,[(a,Offset)])
 allocateNamedBlocks block_list named_requests =
     let (names,requests) = unzip . List.sortBy (compare `on` (snd . snd)) $ named_requests
     in allocateBlocks block_list requests >>= return . second (zip names)

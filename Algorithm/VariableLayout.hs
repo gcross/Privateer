@@ -44,18 +44,20 @@ initialBlockList = [(bitSize (undefined :: Offset),Seq.singleton 0)]
 -- @-node:gcross.20090715105401.3:initialBlockList
 -- @+node:gcross.20090615091711.29:fragmentBlocks
 fragmentBlocks :: Alignment -> Offset -> [(Alignment,Offset)]
-fragmentBlocks final_alignment starting_offset = go final_alignment
+fragmentBlocks final_alignment starting_offset = go2 final_alignment final_offset
   where
     final_offset = (`shiftL` final_alignment) . (+1) . (`shiftR` final_alignment) $ starting_offset
     complement_offset = (final_offset - starting_offset)
-    go alignment
+    go alignment offset
         | alignment < 0
             = []
         | not (complement_offset `testBit` alignment)
-            = go (alignment-1)
+            = go (alignment-1) (offset - bit (alignment-1))
         | otherwise
-            = (alignment,final_offset - (bit alignment))
-                : go (alignment-1)
+            = (alignment,offset)
+                : go (alignment-1) (offset - bit (alignment-1))
+
+    go2 alignment offset = go (alignment-1) (offset - bit (alignment-1))
 -- @-node:gcross.20090615091711.29:fragmentBlocks
 -- @+node:gcross.20090615091711.14:allocateBlock
 allocateBlock :: BlockList -> Request -> Maybe (BlockList,Offset)
@@ -84,9 +86,10 @@ allocateBlock block_list (requested_alignment,requested_size)
 
     mergeFragments :: (BlockZipper,Alignment,Offset) -> (BlockList,Offset)
     mergeFragments (block_zipper,alignment,offset)
-        | bit requested_alignment == requested_size
+        | bit alignment == requested_size
             = (toList block_zipper,offset)
         | otherwise
+            -- = trace ("alignment = " ++ show alignment ++ ", offset+requested_size = " ++ show (offset+requested_size)) $ (go (fragmentBlocks alignment (offset+requested_size)) block_zipper, offset)
             = (go (fragmentBlocks alignment (offset+requested_size)) block_zipper, offset)
       where
         go :: [(Alignment,Offset)] -> BlockZipper -> BlockList
@@ -139,12 +142,23 @@ totalSpaceRequired sizes offsets =
 -- @+node:gcross.20090715105401.4:Helper functions
 -- @+node:gcross.20090715105401.9:minimumAlignment
 minimumAlignment :: Bits a => a -> Alignment
-minimumAlignment 0 = 1
-minimumAlignment size = go (size `shiftR` 1) 1
+minimumAlignment 0 = error "minimum alignment not defined for zero size"
+minimumAlignment size = go size 0
   where
-    go :: Bits a => a -> Alignment -> Alignment
-    go 0 alignment = alignment
-    go size alignment = go (size `shiftR` 1) (alignment+1)
+    go size alignment
+        | size == 0
+            = error "minimum alignment not defined for zero size"
+        | size == 1
+            = alignment
+        | size `testBit` 0
+            = go2 size alignment
+        | otherwise
+            = go (size `shiftR` 1) (alignment+1)
+
+    go2 size alignment = go3 (size `shiftR` 1) (alignment+1)
+
+    go3 0 alignment = alignment
+    go3 size alignment = go2 size alignment
 -- @-node:gcross.20090715105401.9:minimumAlignment
 -- @+node:gcross.20090615091711.45:makeAligned
 makeAligned :: Bits a => a -> Int -> a

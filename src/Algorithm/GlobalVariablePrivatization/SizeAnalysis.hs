@@ -235,19 +235,23 @@ produceDocumentFromToplevelClassification classification =
 -- @+node:gcross.20090523222635.15:processStream
 processStream :: InputStream -> Doc
 processStream input =
+    case execParser_ translUnitP input nopos of
+        Left err -> throw (ParseException err)
+        Right transl_unit -> processTranslUnit transl_unit
+-- @-node:gcross.20090523222635.15:processStream
+-- @+node:gcross.20090715105401.30:processTranslUnit
+processTranslUnit :: CTranslUnit -> Doc
+processTranslUnit (CTranslUnit decls _) =
     let block = 
-            case execParser_ translUnitP input nopos of
-                Left err -> throw (ParseException err)
-                Right (CTranslUnit decls _) ->
-                    vcat
+            vcat
+            .
+            map (
+                    produceDocumentFromToplevelClassification
                     .
-                    map (
-                            produceDocumentFromToplevelClassification
-                            .
-                            classifyToplevelDeclaration
-                        )
-                    $
-                    decls
+                    classifyToplevelDeclaration
+                )
+            $
+            decls
     in  text "extern int printf(const char *, ...);" $+$
         text "int main(int argc, char** argv)" $+$
        (
@@ -262,7 +266,7 @@ processStream input =
         ,   text ""
         ]
        )
--- @-node:gcross.20090523222635.15:processStream
+-- @-node:gcross.20090715105401.30:processTranslUnit
 -- @+node:gcross.20090523222635.18:processFile
 processFile :: String -> String -> IO ()
 processFile input_filename output_filename = do

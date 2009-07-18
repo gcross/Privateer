@@ -66,13 +66,16 @@ data AnalyzedModule = AnalyzedModule
     {    exportedVariables :: !(Trie Offset)
     ,    hiddenVariables :: !(Trie Offset)
     ,    functionsWithStaticVariables :: !(Trie (Trie Offset))
-    }
+    } deriving (Show)
 
 data VariableKey =
     ExportedVariableKey ByteString
   | HiddenVariableKey ByteString
   | FunctionStaticVariableKey ByteString ByteString
-    deriving (Ord,Eq)
+    deriving (Ord,Eq,Show)
+
+instance (Show a) => Show (Trie a) where
+    show = show . Trie.toList
 -- @-node:gcross.20090715105401.19:Analysis
 -- @-node:gcross.20090502101608.7:Types
 -- @+node:gcross.20090506115644.12:Queries

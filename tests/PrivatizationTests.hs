@@ -21,6 +21,7 @@ import qualified Data.ByteString as S
 import Data.Either.Unwrap
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -48,6 +49,14 @@ import CommonTestUtils
 -- @nl
 
 -- @+others
+-- @+node:gcross.20090715105401.29:Helpers
+-- @+node:gcross.20090715105401.27:makeFunctionFromMap
+makeFunctionFromMap map = toInteger . fromJust . flip Map.lookup map
+-- @-node:gcross.20090715105401.27:makeFunctionFromMap
+-- @+node:gcross.20090715105401.28:makeFunctionFromLocalStaticMap
+makeFunctionFromLocalStaticMap map = fmap makeFunctionFromMap . flip Map.lookup map
+-- @-node:gcross.20090715105401.28:makeFunctionFromLocalStaticMap
+-- @-node:gcross.20090715105401.29:Helpers
 -- @+node:gcross.20090709200011.36:Test makers
 -- @+node:gcross.20090709200011.11:makeTestFromSource
 makeTestFromSource :: String -> Assertion
@@ -91,7 +100,7 @@ makeTestFromPrivatizedSource
     .
     pretty
     .
-    processTranslUnit module_data_accessor_name global_variables global_variable_index_map local_static_variable_index_map
+    processTranslUnit module_data_accessor_name global_variables (makeFunctionFromMap global_variable_index_map) (makeFunctionFromLocalStaticMap local_static_variable_index_map)
     .
     parseTranslUnit
 -- @nonl
@@ -138,7 +147,7 @@ makePrivatizeStmtTest
     (\(x,_,_) -> x)
     .
     (\stat -> runRWS (privatizeStmt stat)
-                    (FunctionProcessingEnvironment module_data_accessor_name local_static_variable_index_map)
+                    (FunctionProcessingEnvironment module_data_accessor_name (makeFunctionFromMap local_static_variable_index_map))
                     (global_variables,local_static_variables)
     )
     .
@@ -167,7 +176,7 @@ makePrivatizeFunctionTest
     privatizeFunction
         module_data_accessor_name
         global_variables
-        local_static_variable_index_map
+        (makeFunctionFromMap local_static_variable_index_map)
     .
     (\(CFDefExt x) -> x)
     .
@@ -192,7 +201,7 @@ makeProcessStmtTest
     .
     pretty
     .
-    (\stat -> runReader (processStmt stat) (FunctionProcessingEnvironment module_data_accessor_name local_static_variable_index_map))
+    (\stat -> runReader (processStmt stat) (FunctionProcessingEnvironment module_data_accessor_name (makeFunctionFromMap local_static_variable_index_map)))
     .
     parseStatement
     $
@@ -217,7 +226,7 @@ makeProcessFunctionTest
     .
     CFDefExt
     .
-    processFunction module_data_accessor_name local_static_variable_index_map
+    processFunction module_data_accessor_name (makeFunctionFromMap local_static_variable_index_map)
     .
     (\(CFDefExt x) -> x)
     .
@@ -246,7 +255,7 @@ makeProcessToplevelDeclarationTest
     .
     (flip CTranslUnit internalNode)
     .
-    processToplevelDeclaration module_data_accessor_name global_variables global_variable_index_map local_static_variable_index_map
+    processToplevelDeclaration module_data_accessor_name global_variables (makeFunctionFromMap global_variable_index_map) (makeFunctionFromLocalStaticMap local_static_variable_index_map) 
     .
     parseDeclaration
     $
@@ -516,19 +525,19 @@ tests =
             [testCase "single statement" $
                 makeProcessFunctionTest undefined undefined
                     "const int f() { return i; }"
-                    "static inline void f() { }"
+                    "static inline void __initialize_statics_in__f() { }"
             -- @-node:gcross.20090711085032.24:single statement
             -- @+node:gcross.20090711085032.25:arguments
             ,testCase "arguments" $
                 makeProcessFunctionTest undefined undefined
                     "const int f(int a, restrict char* b, const short* c) { if (a == b) { return c; } else { ++(*b); }; }"
-                    "static inline void f() { int a; restrict char* b; const short* c; }"
+                    "static inline void __initialize_statics_in__f() { int a; restrict char* b; const short* c; }"
             -- @-node:gcross.20090711085032.25:arguments
             -- @+node:gcross.20090711085032.26:arguments and statics
             ,testCase "arguments and statics" $
                 makeProcessFunctionTest "getPtr" (Map.singleton "meaning_of_life" 24)
                     "static char* f(void ** data) { static int meaning_of_life = 42; }"
-                    "static inline void f() { void ** data; static int meaning_of_life = 42; memcpy(getPtr()+24,&meaning_of_life,sizeof(meaning_of_life)); }"
+                    "static inline void __initialize_statics_in__f() { void ** data; static int meaning_of_life = 42; memcpy(getPtr()+24,&meaning_of_life,sizeof(meaning_of_life)); }"
             -- @-node:gcross.20090711085032.26:arguments and statics
             -- @-others
             ]
@@ -544,7 +553,7 @@ tests =
             -- @-node:gcross.20090711085032.30:external declaration
             -- @+node:gcross.20090711085032.35:function
             ,testCase "function" $
-                makeProcessToplevelDeclarationTest undefined (Set.singleton "c") undefined (Map.singleton "f" Map.empty)
+                makeProcessToplevelDeclarationTest undefined (Set.singleton "c") undefined Map.empty
                     "static char* f() { strcpy(c,d); }"
                     "static char* f() { strcpy(*__access__c(),d); }"
             -- @-node:gcross.20090711085032.35:function

@@ -17,6 +17,7 @@ import Control.Monad
 import Control.Monad.Trans
 import qualified Data.ByteString as S
 import Data.Either.Unwrap
+import Data.Maybe
 import Language.C
 import Language.C.System.GCC
 import Language.C.System.Preprocess
@@ -32,6 +33,8 @@ import Text.PrettyPrint
 import Text.XML.Expat.Tree
 
 import Algorithm.GlobalVariablePrivatization.SizeAnalysis
+
+import Algorithm.VariableLayout
 
 import CommonTestUtils
 -- @-node:gcross.20090523222635.24:<< Imports >>
@@ -77,7 +80,20 @@ makeTests = do
                     createProcess (proc analysis_executable_filepath []) { std_out = CreatePipe }
                 output_tree <- S.hGetContents process_output >>= return . parseTree' Nothing --'
                 whenLeft output_tree $ \error -> assertFailure ("Parsing XML output failed with error " ++ show error)
-                evaluate . xmlToAnalyzedModule . fromRight $ output_tree 
+                let AnalyzedModule exported_variables hidden_variables functions_with_statics =
+                        allocationListToAnalyzedModule
+                        .
+                        snd
+                        .
+                        fromJust
+                        .
+                        allocateNamedBlocks initialBlockList
+                        .
+                        xmlToRequestList
+                        .
+                        fromRight
+                        $
+                        output_tree
                 return ()
 
     return

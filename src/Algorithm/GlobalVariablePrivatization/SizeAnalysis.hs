@@ -13,6 +13,7 @@ module Algorithm.GlobalVariablePrivatization.SizeAnalysis where
 
 -- @<< Imports >>
 -- @+node:gcross.20090502101608.6:<< Imports >>
+import Control.Arrow
 import Control.Exception
 
 import Data.ByteString (ByteString)
@@ -30,10 +31,14 @@ import Text.Printf
 import Text.XML.Expat.Tree
 
 import Algorithm.GlobalVariablePrivatization.Common
+
+import Algorithm.VariableLayout
 -- @-node:gcross.20090502101608.6:<< Imports >>
 -- @nl
--- @<< Types >>
--- @+node:gcross.20090502101608.7:<< Types >>
+
+-- @+others
+-- @+node:gcross.20090502101608.7:Types
+-- @+node:gcross.20090715105401.18:Classifications
 data StorageClassification = Automatic | Static
  deriving (Eq,Show,Typeable,Data)
 
@@ -55,16 +60,21 @@ data BlockItemClassification =
  |  NestedBlocks [[BlockItemClassification]]
  |  BlockItemDeclaration DeclarationClassification
  deriving (Typeable,Data)
-
+-- @-node:gcross.20090715105401.18:Classifications
+-- @+node:gcross.20090715105401.19:Analysis
 data AnalyzedModule = AnalyzedModule
-    {    exportedVariables :: !(Trie Int)
-    ,    hiddenVariables :: !(Trie Int)
-    ,    functionsWithStatics :: !(Trie (Trie Int))
+    {    exportedVariables :: !(Trie Offset)
+    ,    hiddenVariables :: !(Trie Offset)
+    ,    functionsWithStaticVariables :: !(Trie (Trie Offset))
     }
--- @-node:gcross.20090502101608.7:<< Types >>
--- @nl
 
--- @+others
+data VariableKey =
+    ExportedVariableKey ByteString
+  | HiddenVariableKey ByteString
+  | FunctionStaticVariableKey ByteString ByteString
+    deriving (Ord,Eq)
+-- @-node:gcross.20090715105401.19:Analysis
+-- @-node:gcross.20090502101608.7:Types
 -- @+node:gcross.20090506115644.12:Queries
 -- @+node:gcross.20090502101608.13:hasStaticInsideXXX
 hasStaticInsideBlockItem :: CBlockItem -> Bool
@@ -262,7 +272,7 @@ processFile input_filename output_filename = do
 -- @-node:gcross.20090523222635.18:processFile
 -- @-node:gcross.20090523222635.14:Processing
 -- @+node:gcross.20090524230548.5:Analysis
--- @+node:gcross.20090524230548.6:xmlToAnalyzedModule
+-- @+node:gcross.20090715105401.23:xmlToRequestList
 analysis_B = B8.pack "analysis"
 exported_B = B8.pack "exported-variable"
 hidden_B = B8.pack "hidden-variable"
@@ -271,38 +281,70 @@ name_B = B8.pack "name"
 size_B = B8.pack "size"
 function_B = B8.pack "function"
 
-xmlToAnalyzedModule :: Node ByteString ByteString -> AnalyzedModule
-xmlToAnalyzedModule (Element name attributes children) = assert (name == analysis_B) $
-    AnalyzedModule
-        {   exportedVariables = Trie.fromList . readVariables exported_B $ children
-        ,   hiddenVariables = Trie.fromList . readVariables hidden_B $ children
-        ,   functionsWithStatics =
-                Trie.fromList
-                .
-                List.map (\(Element _ attributes children) ->
-                    (   fromJust . List.lookup name_B $ attributes
-                    ,   Trie.fromList . readVariables static_B $ children
-                    )
-                  )
-                .
-                List.filter isFunctionElement
-                $
-                children
-        }
+xmlToRequestList :: Node ByteString ByteString -> NamedRequestList VariableKey
+xmlToRequestList (Element name _ children) =
+    assert (name == analysis_B) $ go children
   where
-    readVariables vartyp = List.map readVariable . List.filter (isVariableOfType vartyp)
+    go :: [Node ByteString ByteString] -> NamedRequestList VariableKey
+    go [] = []
+    go (Text _:rest) = go rest
+    go (Element tag attributes children:rest)
+        | tag == exported_B
+            = extractVariableKeyPair ExportedVariableKey attributes : go rest
+        | tag == hidden_B
+            = extractVariableKeyPair HiddenVariableKey attributes : go rest
+        | tag == function_B
+            = go2 (extractNameFrom attributes) children rest
 
-    readVariable (Element _ attributes _ ) =
-        let name = fromJust . List.lookup name_B $ attributes
-            size = read . B8.unpack . fromJust . List.lookup size_B $ attributes
-        in (name,size)
+    go2 :: ByteString -> [Node ByteString ByteString] -> [Node ByteString ByteString] -> NamedRequestList VariableKey
+    go2 _ [] rest = go rest
+    go2 name (Text _:rest2) rest = go2 name rest2 rest
+    go2 name (Element tag attributes _:rest2) rest
+        = assert (tag == static_B)
+            $ extractVariableKeyPair (FunctionStaticVariableKey name) attributes : go2 name rest2 rest
 
-    isFunctionElement (Element name _ _) = (name == function_B)
-    isFunctionElement _ = False
+    extractNameFrom :: [(ByteString,ByteString)] -> ByteString
+    extractNameFrom = fromJust . List.lookup name_B
 
-    isVariableOfType vartyp (Element name _ _) = vartyp == name
-    isVariableOfType _ _ = False
--- @-node:gcross.20090524230548.6:xmlToAnalyzedModule
+    extractSizeFrom :: [(ByteString,ByteString)] -> Size
+    extractSizeFrom = read . B8.unpack . fromJust . List.lookup size_B
+
+    extractVariableKeyPair
+        :: (ByteString -> VariableKey)
+        -> [(ByteString,ByteString)]
+        -> NamedRequest VariableKey
+    extractVariableKeyPair wrapper = (wrapper . extractNameFrom) &&& ((minimumAlignment &&& id) . extractSizeFrom)
+-- @-node:gcross.20090715105401.23:xmlToRequestList
+-- @+node:gcross.20090715105401.25:moduleWithoutVariables
+moduleWithoutVariables = AnalyzedModule Trie.empty Trie.empty Trie.empty
+-- @-node:gcross.20090715105401.25:moduleWithoutVariables
+-- @+node:gcross.20090715105401.24:allocationListToAnalyzedModule
+allocationListToAnalyzedModule :: [(VariableKey,Offset)] -> AnalyzedModule
+allocationListToAnalyzedModule = List.foldl' addVariable moduleWithoutVariables --'
+  where
+    addVariable :: AnalyzedModule -> (VariableKey,Offset) -> AnalyzedModule
+    addVariable analyzed_module (key,offset) =
+        case key of
+            ExportedVariableKey name ->
+                analyzed_module {
+                    exportedVariables = Trie.insert name offset (exportedVariables analyzed_module)
+                }
+            HiddenVariableKey name ->
+                analyzed_module {
+                    hiddenVariables = Trie.insert name offset (hiddenVariables analyzed_module)
+                }
+            FunctionStaticVariableKey function_name variable_name ->
+                let old_statics = functionsWithStaticVariables analyzed_module
+                in analyzed_module {
+                    functionsWithStaticVariables = Trie.insert function_name (
+                        maybe
+                            (Trie.singleton variable_name offset)
+                            (Trie.insert variable_name offset)
+                            (Trie.lookup function_name old_statics)
+                    ) old_statics
+                }
+-- @nonl
+-- @-node:gcross.20090715105401.24:allocationListToAnalyzedModule
 -- @-node:gcross.20090524230548.5:Analysis
 -- @-others
 -- @-node:gcross.20090502101608.4:@thin SizeAnalysis.hs

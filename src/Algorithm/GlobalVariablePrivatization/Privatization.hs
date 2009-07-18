@@ -67,16 +67,17 @@ makeTypedefSpecifier variable_type_name = CTypeSpec (CTypeDef (internalIdent var
 makeVariableExpr variable_name = CVar (internalIdent variable_name) internalNode
 -- @-node:gcross.20090709200011.21:makeVariableExpr
 -- @+node:gcross.20090709200011.25:makeIntegerExpr
-makeIntegerExpr value = CConst (CIntConst (cInteger.toInteger $ value) internalNode)
+makeIntegerExpr :: Integer -> CExpr
+makeIntegerExpr = CConst . flip CIntConst internalNode . cInteger
 -- @-node:gcross.20090709200011.25:makeIntegerExpr
 -- @+node:gcross.20090709200011.26:makeFloatExpr
-makeFloatExpr value = CConst (CFloatConst (cFloat value) internalNode)
+makeFloatExpr = CConst . flip CFloatConst internalNode . cFloat
 -- @-node:gcross.20090709200011.26:makeFloatExpr
 -- @+node:gcross.20090709200011.27:makeStringExpr
-makeStringExpr value = CConst (CStrConst (cString value) internalNode)
+makeStringExpr = CConst . flip CStrConst internalNode . cString
 -- @-node:gcross.20090709200011.27:makeStringExpr
 -- @+node:gcross.20090711085032.5:makePointerToGlobalVariable
-makePointerToGlobalVariable :: String -> Int -> CExpr
+makePointerToGlobalVariable :: String -> Integer -> CExpr
 makePointerToGlobalVariable module_data_access_function_name module_data_offset =
     CBinary CAddOp
         (CCall (makeVariableExpr module_data_access_function_name) [] internalNode)
@@ -84,7 +85,7 @@ makePointerToGlobalVariable module_data_access_function_name module_data_offset 
         internalNode
 -- @-node:gcross.20090711085032.5:makePointerToGlobalVariable
 -- @+node:gcross.20090709200011.54:makeCastedPointerToGlobalVariable
-makeCastedPointerToGlobalVariable :: String -> CDeclSpec -> [CDerivedDeclr] -> Int -> CExpr
+makeCastedPointerToGlobalVariable :: String -> CDeclSpec -> [CDerivedDeclr] -> Integer -> CExpr
 makeCastedPointerToGlobalVariable module_data_access_function_name typedef_spec variable_indirections module_data_offset =
     let cast_declr = CDeclr Nothing (pointer_indirection:variable_indirections) Nothing [] internalNode
         cast_decl = CDecl
@@ -138,7 +139,7 @@ echo show value = trace (show value) $ value
 -- @-node:gcross.20090709200011.17:Utilities
 -- @+node:gcross.20090709200011.20:Processing
 -- @+node:gcross.20090708193517.3:makeAccessor
-makeAccessor :: String -> Bool -> String -> CDeclSpec -> [CDerivedDeclr] -> Int -> CFunDef
+makeAccessor :: String -> Bool -> String -> CDeclSpec -> [CDerivedDeclr] -> Integer -> CFunDef
 makeAccessor module_data_access_function_name is_static variable_name typedef_spec variable_indirections module_data_offset =
     let specification =   typedef_spec
                         : (CTypeQual (CInlineQual internalNode))
@@ -196,17 +197,21 @@ processExtern global_variables (CDecl specification declarators _)
         new_indirections = addAccessorFunctionIndirectionsTo indirections
 -- @-node:gcross.20090709200011.48:processExtern
 -- @+node:gcross.20090711085032.20:processToplevelDeclaration
-processToplevelDeclaration :: String -> Set String -> Map String Int -> Map String (Map String Int) -> CExtDecl -> [CExtDecl]
+processToplevelDeclaration :: String -> Set String -> (String -> Integer) -> (String -> Maybe (String -> Integer)) -> CExtDecl -> [CExtDecl]
 processToplevelDeclaration _ _ _ _ decl@(CAsmExt _) = [decl]
-processToplevelDeclaration module_data_accessor_name global_variables _ function_static_variables (CFDefExt fundef) =
+processToplevelDeclaration module_data_accessor_name global_variables _ getFunctionStaticVariableOffset (CFDefExt fundef) =
     let CFunDef _ (CDeclr (Just ident) _ _ _ _) _ _ _ = fundef
-        local_static_variables = fromMaybe (Map.empty) (Map.lookup (identToString ident) function_static_variables)
-        privatized_function = CFDefExt $ privatizeFunction module_data_accessor_name global_variables local_static_variables fundef
+        function_name = identToString ident
+        maybe_getStaticVariableOffset = getFunctionStaticVariableOffset function_name
+        getStaticVariableOffset = fromMaybe
+            (\variable_name -> error $ "Error:  First pass of '" ++ function_name ++ "' didn't see any static variables, but in the second pass we saw a variable named '" ++ variable_name ++ "'!")
+            maybe_getStaticVariableOffset
+        privatized_function = CFDefExt $ privatizeFunction module_data_accessor_name global_variables getStaticVariableOffset fundef
     in privatized_function :
-        if Map.null local_static_variables
+        if isNothing maybe_getStaticVariableOffset
             then []
-            else (CFDefExt $ processFunction module_data_accessor_name local_static_variables fundef) : []
-processToplevelDeclaration module_data_accessor_name global_variables global_variable_index_map _ ext_decl@(CDeclExt decl@(CDecl specification declarators _)) =
+            else (CFDefExt $ processFunction module_data_accessor_name getStaticVariableOffset fundef) : []
+processToplevelDeclaration module_data_accessor_name global_variables getGlobalVariableOffset _ ext_decl@(CDeclExt decl@(CDecl specification declarators _)) =
     case extractStorage specification of
         Just (CTypedef _) -> [ext_decl]
         Just (CExtern _) -> [CDeclExt . processExtern global_variables $ decl]
@@ -241,13 +246,13 @@ processToplevelDeclaration module_data_accessor_name global_variables global_var
         processVariable :: (Maybe CDeclr, Maybe CInit, Maybe CExpr) -> [CExtDecl]
         processVariable (Just (CDeclr (Just ident) variable_indirections _ _ _), maybe_init, _) =
             let variable_name = identToString ident 
-                variable_offset = fromJust (Map.lookup variable_name global_variable_index_map)
+                variable_offset = getGlobalVariableOffset variable_name
                 variable_accessor = makeAccessor module_data_accessor_name is_static variable_name typedef_spec variable_indirections variable_offset
                 variable_initializer = makeInitializer variable_name typedef_spec variable_indirections maybe_init
             in map CFDefExt [variable_accessor, variable_initializer]
 -- @-node:gcross.20090711085032.20:processToplevelDeclaration
 -- @+node:gcross.20090711085032.32:processTranslUnit
-processTranslUnit :: String -> Set String -> Map String Int -> Map String (Map String Int) -> CTranslUnit -> CTranslUnit
+processTranslUnit :: String -> Set String -> (String -> Integer) -> (String -> Maybe (String -> Integer)) -> CTranslUnit -> CTranslUnit
 processTranslUnit a b c d (CTranslUnit decls _) = (flip CTranslUnit internalNode) . concat . map (processToplevelDeclaration a b c d) $ decls
 -- @-node:gcross.20090711085032.32:processTranslUnit
 -- @-node:gcross.20090709200011.20:Processing
@@ -255,8 +260,8 @@ processTranslUnit a b c d (CTranslUnit decls _) = (flip CTranslUnit internalNode
 -- @+node:gcross.20090709200011.56:Types
 data FunctionProcessingEnvironment = FunctionProcessingEnvironment
     {    globalModuleDataAccessorName :: String
-    ,    localStaticVariableIndexMap :: Map String Int
-    } deriving (Show)
+    ,    localStaticVariableOffsetMap :: String -> Integer
+    }
 
 type CurrentVariablesState = (Set String,Set String)
 
@@ -352,19 +357,24 @@ privatizeBlockItem privatized_block_items item
                         decl
                 Just (CStatic _) -> do
                     module_data_access_function_name <- asks globalModuleDataAccessorName
-                    local_static_index_map <- asks localStaticVariableIndexMap
+                    getLocalStaticVariableOffset <- asks localStaticVariableOffsetMap
                     let (typedef_spec,typedef_decl) = makeTypedefDeclFrom decl
                         processDeclarator :: [String] -> (Maybe CDeclr, Maybe CInit, Maybe CExpr) -> ([String],(Maybe CDeclr, Maybe CInit, Maybe CExpr))
                         processDeclarator names declarator =
                             let (Just (CDeclr (Just ident) indirections maybe_cstrlit attrs _),_,maybe_expr) = declarator
                                 name = identToString ident
                                 new_declarator = CDeclr (Just ident) (pointer_indirection:indirections) maybe_cstrlit attrs internalNode
-                                new_initializer = flip CInitExpr internalNode $
+                                new_initializer =
+                                    flip CInitExpr internalNode
+                                    .
                                     makeCastedPointerToGlobalVariable
                                         module_data_access_function_name
                                         typedef_spec
                                         indirections
-                                        (fromJust $ Map.lookup name local_static_index_map)
+                                    .
+                                    getLocalStaticVariableOffset
+                                    $
+                                    name
                             in ((name:names),(Just new_declarator,Just new_initializer,maybe_expr))
                         (variable_names,new_declarators) = mapAccumL processDeclarator [] declarators
                         variable_decl = CDecl [typedef_spec] new_declarators internalNode
@@ -372,11 +382,11 @@ privatizeBlockItem privatized_block_items item
                     return $ (privatized_block_items `DList.snoc` (CBlockDecl typedef_decl)) `DList.snoc` (CBlockDecl variable_decl)
 -- @-node:gcross.20090709200011.47:privatizeBlockItem
 -- @+node:gcross.20090710174219.10:privatizeFunction
-privatizeFunction :: String -> Set String -> Map String Int -> CFunDef -> CFunDef
+privatizeFunction :: String -> Set String -> (String -> Integer) -> CFunDef -> CFunDef
 privatizeFunction
     module_data_accessor_name
     global_variables
-    local_static_variable_index_map
+    getLocalStaticVariableOffset
     (CFunDef specification declarator declarations statement _)
     =
     let CDeclr (Just ident) ((CFunDeclr args _ _):_) _ _ _ = declarator
@@ -385,7 +395,7 @@ privatizeFunction
                 Left idents -> map identToString idents
                 Right (declarations,_) -> extractNamesFromDeclarations declarations
         (new_statement,_,_) = runRWS (privatizeStmt statement)
-                                (FunctionProcessingEnvironment module_data_accessor_name local_static_variable_index_map)
+                                (FunctionProcessingEnvironment module_data_accessor_name getLocalStaticVariableOffset)
                                 (global_variables `Set.difference` variables_to_shadow,Set.empty)
     in CFunDef specification declarator declarations new_statement internalNode
 -- @-node:gcross.20090710174219.10:privatizeFunction
@@ -394,7 +404,7 @@ privatizeFunction
 -- @+node:gcross.20090711085032.14:makeInitializerStmt
 makeInitializerStmt :: String -> Reader FunctionProcessingEnvironment CStat
 makeInitializerStmt name =
-    liftM2 makePointerToGlobalVariable (asks globalModuleDataAccessorName) (asks localStaticVariableIndexMap >>= return . fromJust . Map.lookup name)
+    liftM2 makePointerToGlobalVariable (asks globalModuleDataAccessorName) (asks localStaticVariableOffsetMap >>= return . ($ name))
     >>=
     return . makeMemcpyStmt name
 -- @-node:gcross.20090711085032.14:makeInitializerStmt
@@ -438,20 +448,25 @@ processStmt stat =
             new_items -> CCompound [] new_items internalNode
 -- @-node:gcross.20090711085032.12:processStmt
 -- @+node:gcross.20090711085032.21:processFunction
-processFunction :: String -> Map String Int -> CFunDef -> CFunDef
+processFunction :: String -> (String -> Integer) -> CFunDef -> CFunDef
 processFunction
     module_data_accessor_name
-    local_static_variable_index_map
+    getLocalStaticVariableIndex
     (CFunDef _ declarator declarations statement _)
     =
     let CDeclr (Just ident) ((CFunDeclr args _ _):_) _ _ _ = declarator
-        new_declarator = CDeclr (Just ident) [CFunDeclr (Left []) [] internalNode] Nothing [] internalNode
+        new_declarator = CDeclr
+            (Just . internalIdent . ("__initialize_statics_in__"++) . identToString $ ident)
+            [CFunDeclr (Left []) [] internalNode]
+            Nothing
+            []
+            internalNode
         argument_declarations =
             case args of
                 Left _ -> declarations
                 Right (declarations,_) -> declarations
         processed_statement = runReader (processStmt statement)
-                                (FunctionProcessingEnvironment module_data_accessor_name local_static_variable_index_map)
+                                (FunctionProcessingEnvironment module_data_accessor_name getLocalStaticVariableIndex)
         new_statement = if null argument_declarations
                             then processed_statement
                             else CCompound [] ((map CBlockDecl argument_declarations)++(

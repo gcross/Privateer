@@ -20,6 +20,7 @@ import Control.Monad.RWS
 
 import Data.DList (DList)
 import qualified Data.DList as DList
+import Data.Either.Unwrap
 import Data.List.Stream
 import Data.Generics
 import Data.Map (Map)
@@ -59,6 +60,12 @@ function_without_arguments_indirection = CFunDeclr (Left []) [] internalNode
 -- @-node:gcross.20090709200011.52:function_without_arguments_indirection
 -- @-node:gcross.20090709200011.50:Indirections
 -- @-node:gcross.20090709200011.22:Constants
+-- @+node:gcross.20090718130736.5:Prefixes
+-- @+node:gcross.20090718130736.6:initializers
+prefixVariableInitializer = ("__initialize__" ++)
+prefixFunctionStaticsInitializer = ("__initialize_statics_in__" ++)
+-- @-node:gcross.20090718130736.6:initializers
+-- @-node:gcross.20090718130736.5:Prefixes
 -- @+node:gcross.20090709200011.17:Utilities
 -- @+node:gcross.20090709200011.19:makeTypedefSpecifier
 makeTypedefSpecifier variable_type_name = CTypeSpec (CTypeDef (internalIdent variable_type_name) internalNode)
@@ -136,8 +143,24 @@ makeCompoundStmt items = CCompound [] items internalNode
 echo :: (a -> String) -> a -> a
 echo show value = trace (show value) $ value
 -- @-node:gcross.20090709200011.66:echo
+-- @+node:gcross.20090718130736.7:makeArgumentlessProcedure
+makeArgumentlessProcedure :: Bool -> String -> CStat -> CFunDef
+makeArgumentlessProcedure is_static name statement =
+    let specifiers = void_specifier : if is_static then [static_specifier] else []
+        declarator =
+            let maybe_ident = (Just . internalIdent $ name)
+                indirections = [function_without_arguments_indirection]
+            in CDeclr maybe_ident indirections Nothing [] internalNode
+    in CFunDef specifiers declarator [] statement internalNode
+-- @-node:gcross.20090718130736.7:makeArgumentlessProcedure
 -- @-node:gcross.20090709200011.17:Utilities
--- @+node:gcross.20090709200011.20:Processing
+-- @+node:gcross.20090718130736.9:Std C Function Imports
+-- @+node:gcross.20090718130736.10:import_memcpy
+import_memcpy = fromRight . flip (execParser_ extDeclP) nopos . inputStreamFromString $
+    "extern void *memcpy(void *restrict s1, const void *restrict s2, int n);"
+-- @-node:gcross.20090718130736.10:import_memcpy
+-- @-node:gcross.20090718130736.9:Std C Function Imports
+-- @+node:gcross.20090718130736.8:Function generators
 -- @+node:gcross.20090708193517.3:makeAccessor
 makeAccessor :: String -> Bool -> String -> CDeclSpec -> [CDerivedDeclr] -> Integer -> CFunDef
 makeAccessor module_data_access_function_name is_static variable_name typedef_spec variable_indirections module_data_offset =
@@ -161,12 +184,8 @@ makeAccessor module_data_access_function_name is_static variable_name typedef_sp
 -- @+node:gcross.20090709200011.16:makeInitializer
 makeInitializer :: String -> CDeclSpec -> [CDerivedDeclr] -> Maybe CInit -> CFunDef
 makeInitializer variable_name typedef_spec variable_indirections maybe_init =
-    let specifiers = [static_specifier,void_specifier]
-        declarator =
-            let maybe_ident = (Just . internalIdent . ("__initialize__" ++) $ variable_name)
-                indirections = [function_without_arguments_indirection]
-            in CDeclr maybe_ident indirections Nothing [] internalNode
-        block_items =
+    let name = prefixVariableInitializer variable_name
+        statement = makeCompoundStmt $
             case maybe_init of
                 Nothing -> []
                 Just init ->
@@ -180,9 +199,31 @@ makeInitializer variable_name typedef_spec variable_indirections maybe_init =
                     in  [CBlockDecl declare_default_value
                         ,CBlockStmt copy_into_variable
                         ]
-        statement = CCompound [] block_items internalNode
-    in CFunDef specifiers declarator [] statement internalNode
+    in makeArgumentlessProcedure True name statement
 -- @-node:gcross.20090709200011.16:makeInitializer
+-- @+node:gcross.20090718130736.3:makeInitializerForwardDeclaration
+makeInitializerForwardDeclaration :: [String] -> [String] -> CDecl
+makeInitializerForwardDeclaration global_variable_names functions_with_statics_names =
+    let specification = [static_specifier,void_specifier]
+        declarators =
+            map (makeDeclarator . prefixVariableInitializer) global_variable_names
+         ++ map (makeDeclarator . prefixFunctionStaticsInitializer) functions_with_statics_names
+    in CDecl specification declarators internalNode
+  where
+    makeDeclarator name = (Just (CDeclr (Just . internalIdent $ name) [function_without_arguments_indirection] Nothing [] internalNode),Nothing,Nothing)
+-- @-node:gcross.20090718130736.3:makeInitializerForwardDeclaration
+-- @+node:gcross.20090718130736.4:makeModuleInitializer
+makeModuleInitializer :: String -> [String] -> [String] -> CFunDef
+makeModuleInitializer name global_variable_names functions_with_statics_names =
+    let statement = makeCompoundStmt $
+            map (makeCall . prefixVariableInitializer) global_variable_names
+         ++ map (makeCall . prefixFunctionStaticsInitializer) functions_with_statics_names
+    in makeArgumentlessProcedure False name statement
+  where
+    makeCall name = CBlockStmt . (flip CExpr internalNode) . Just $ CCall (makeVariableExpr name) [] internalNode
+-- @-node:gcross.20090718130736.4:makeModuleInitializer
+-- @-node:gcross.20090718130736.8:Function generators
+-- @+node:gcross.20090709200011.20:Processing
 -- @+node:gcross.20090709200011.48:processExtern
 processExtern :: Set String -> CDecl -> CDecl
 processExtern global_variables (CDecl specification declarators _)
@@ -220,6 +261,7 @@ processToplevelDeclaration module_data_accessor_name global_variables getGlobalV
         Nothing -> processGlobalsDeclaration False
   where
     processGlobalsDeclaration is_static =
+        if null declarators then [ext_decl] else
         let function_declarators = filter isFunctionDeclarator declarators
             functions_declaration = CDeclExt $ CDecl [typedef_spec] function_declarators internalNode
             prepend_functions_declaration = if null function_declarators then id else (functions_declaration:)
@@ -456,7 +498,7 @@ processFunction
     =
     let CDeclr (Just ident) ((CFunDeclr args _ _):_) _ _ _ = declarator
         new_declarator = CDeclr
-            (Just . internalIdent . ("__initialize_statics_in__"++) . identToString $ ident)
+            (Just . internalIdent . prefixFunctionStaticsInitializer . identToString $ ident)
             [CFunDeclr (Left []) [] internalNode]
             Nothing
             []

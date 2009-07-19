@@ -3,3 +3,5 @@ dist
 *.o
 *.hi
 Setup
+tests/build
+a.out*

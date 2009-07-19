@@ -1,7 +1,10 @@
-void * getPtr() { return (void*) 0; }
+#include <stdio.h>
 
-int i;
-static int j;
+int i = 1;
+static int j = 2;
 extern int k;
 
-int main() { return 0; }
+int main() {
+  __initialize__();
+  printf("i = %i, j = %i",i,j);
+}

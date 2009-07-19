@@ -257,7 +257,7 @@ tests =
                     requests = map (second (minimumAlignment &&& id)) variables
                 in (not . null) variables ==> case allocateNamedBlocks initialBlockList requests of
                     Nothing -> True
-                    Just (new_blocks,offsets) -> totalSpaceRequired variables offsets >= sum sizes
+                    Just (new_blocks,offsets) -> totalSpaceRequired requests offsets >= sum sizes
         -- @-node:gcross.20090715105401.22:total space > space allocated
         -- @-others
         ]

@@ -215,7 +215,7 @@ makeTests = do
                 openFile privatized_log_filepath WriteMode
                     >>=
                     (\handle -> createProcess (shell . intercalate " " $
-                        ["cc",privatized_source_filepath,"-o",privatized_executable_filepath])
+                        ["cc","-O3",privatized_source_filepath,"-o",privatized_executable_filepath])
                         { std_out = CreatePipe, std_err = UseHandle handle })
                     >>=
                     (\(_,_,_,handle) -> return handle)

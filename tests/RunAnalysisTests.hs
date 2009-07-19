@@ -21,6 +21,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Either.Unwrap
+import Data.List
 import Data.Maybe
 import qualified Data.Set as Set
 import qualified Data.Trie as Trie
@@ -33,6 +34,7 @@ import System
 import System.Directory
 import System.Exit
 import System.FilePath
+import System.IO
 import System.Process
 
 import Test.Framework
@@ -80,6 +82,7 @@ makeTests = do
                 x:_ -> x
                 _ -> error $ "Unable to find sources for running analysis tests!  Tried '"
                                     ++ show directories_to_search_for_sources
+        includepath = sourcepath </> "include"
         buildpath = replaceFileName sourcepath "build"
     createDirectoryIfMissing True buildpath
 
@@ -90,17 +93,19 @@ makeTests = do
             let original_source_filepath = sourcepath </> filename <.> "c"
                 modified_executable_filepath = buildpath </> filename
                 modified_source_filepath = modified_executable_filepath <.> "c"
+                modified_log_filepath = modified_executable_filepath <.> "log"
                 analysis_executable_filepath = modified_executable_filepath ++ "-analyze"
-                analysis_source_filepath = modified_executable_filepath ++ "-analyze" <.> "c"
-                privatized_source_filepath = modified_executable_filepath ++ "-privatized" <.> "c"
+                analysis_source_filepath = analysis_executable_filepath <.> "c"
                 privatized_executable_filepath = modified_executable_filepath ++ "-privatized"
+                privatized_source_filepath = privatized_executable_filepath <.> "c"
+                privatized_log_filepath = privatized_executable_filepath <.> "log"
             -- @-node:gcross.20090718130736.17:<< File paths >>
             -- @nl
             in do
                 -- @                << Pre-process and parse source file >>
                 -- @+node:gcross.20090718130736.12:<< Pre-process and parse source file >>
                 doesFileExist original_source_filepath >>= (assertBool $ "Does the source file exist?")
-                preprocessor_result <- runPreprocessor gcc (CppArgs [] [] Nothing original_source_filepath Nothing)
+                preprocessor_result <- runPreprocessor gcc (CppArgs [IncludeDir includepath] [] Nothing original_source_filepath Nothing)
                 transl_unit <- case preprocessor_result of
                     Left code -> assertFailure ("Preprocessing failed with exit code " ++ show code) >> undefined
                     Right input ->
@@ -194,9 +199,29 @@ makeTests = do
                 -- @+node:gcross.20090718130736.16:<< Compare outputs >>
                 L.readFile original_source_filepath
                     >>= L.writeFile modified_source_filepath . L.append (L8.pack "void __initialize__() { }\n\n")
-                (rawSystem "cc" [modified_source_filepath,"-o",modified_executable_filepath]) >>=
+
+                openFile modified_log_filepath WriteMode
+                    >>=
+                    (\handle -> createProcess (shell . intercalate " " $
+                        ["cc","-I",includepath,modified_source_filepath,"-o",modified_executable_filepath])
+                        { std_out = CreatePipe, std_err = UseHandle handle })
+                    >>=
+                    (\(_,_,_,handle) -> return handle)
+                    >>=
+                    waitForProcess
+                    >>=
                     assertEqual "Were we able to compute the modified source file?" ExitSuccess
-                (rawSystem "cc" [privatized_source_filepath,"-o",privatized_executable_filepath]) >>=
+
+                openFile privatized_log_filepath WriteMode
+                    >>=
+                    (\handle -> createProcess (shell . intercalate " " $
+                        ["cc",privatized_source_filepath,"-o",privatized_executable_filepath])
+                        { std_out = CreatePipe, std_err = UseHandle handle })
+                    >>=
+                    (\(_,_,_,handle) -> return handle)
+                    >>=
+                    waitForProcess
+                    >>=
                     assertEqual "Were we able to compute the privatized source file?" ExitSuccess
 
                 original_output <-

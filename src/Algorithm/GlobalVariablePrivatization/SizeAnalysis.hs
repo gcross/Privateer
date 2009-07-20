@@ -13,6 +13,8 @@ module Algorithm.GlobalVariablePrivatization.SizeAnalysis where
 
 -- @<< Imports >>
 -- @+node:gcross.20090502101608.6:<< Imports >>
+import Prelude hiding ((++),unzip,map,any,null,filter)
+
 import Control.Arrow
 import Control.Exception
 
@@ -20,9 +22,10 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
 import Data.Data
 import qualified Data.List.Stream as List
+import Data.List.Stream
+import Data.Maybe
 import Data.Trie (Trie)
 import qualified Data.Trie as Trie
-import Data.Maybe
 
 import Language.C
 
@@ -105,6 +108,30 @@ globalStorageRequiredBy (CDeclExt (CDecl decl_specs _ _)) =
         Just (CStatic _) -> True
         _ -> False
 -- @-node:gcross.20090506115644.17:globalStorageRequiredBy
+-- @+node:gcross.20090718130736.19:maximumDesignatorIndexIn
+maximumIndexDesignatorIn :: [CDesignator] -> Integer
+maximumIndexDesignatorIn designators =
+    let (CArrDesig (CConst (CIntConst int _) ) _) = maximumBy compareDesignators designators
+    in getCInteger int
+    where
+        reportBadDesignator ad =
+            let s_ad = (render.pretty) ad
+            in error $ "array designators with indices other than an explicit numeric constant are not supported when used to initialize an array with unspecified size; problem designator is '" ++ s_ad ++ "'"
+        compareDesignators (CArrDesig (CConst (CIntConst int1 _) ) _) (CArrDesig (CConst (CIntConst int2 _) ) _) = (getCInteger int1) `compare` (getCInteger int2)
+        compareDesignators (CArrDesig (CConst (CIntConst _ _) ) _) ad = reportBadDesignator ad
+        compareDesignators ad _ = reportBadDesignator ad
+-- @-node:gcross.20090718130736.19:maximumDesignatorIndexIn
+-- @+node:gcross.20090718130736.18:lastArrayDesignatorIndexIn
+lastArrayDesignatorIndexIn :: [[CDesignator]] -> Integer
+lastArrayDesignatorIndexIn = lastDesignator 0
+    where
+        lastDesignator :: Integer -> [[CDesignator]] -> Integer
+        lastDesignator next [] = next
+        lastDesignator next (designators:rest) =
+            case designators of
+                [] -> lastDesignator (next+1) rest
+                _ -> lastDesignator ((maximumIndexDesignatorIn designators)+1) rest
+-- @-node:gcross.20090718130736.18:lastArrayDesignatorIndexIn
 -- @-node:gcross.20090506115644.12:Queries
 -- @+node:gcross.20090517181648.10:Classification
 -- @+node:gcross.20090517181648.7:classifyToplevelDeclaration
@@ -131,19 +158,8 @@ classifyToplevelDeclaration extdecl =
 classifyDeclaration :: CDecl -> DeclarationClassification
 classifyDeclaration decl =
     let (CDecl decl_specs declarators node_info) = decl
-        (variable_names,stripped_declarators) =
-            List.mapAccumL 
-                (\variable_names (Just declarator,_,_) ->
-                    let CDeclr (Just ident) indirections _ _ _ = declarator
-                        name = identToString ident
-                        stripped_triplet = (Just declarator,Nothing,Nothing)
-                    in case indirections of
-                        CFunDeclr _ _ _:_ -> (variable_names,stripped_triplet)
-                        _ -> (name:variable_names,stripped_triplet)
-                )
-                []
-                declarators
-        stripped_declaration = (CDecl decl_specs stripped_declarators node_info)
+        (variable_names,stripped_declarators) = unzip . catMaybes . map retrieveVariable $ declarators
+        stripped_declaration = (CDecl (filter (not . isStorage) decl_specs) stripped_declarators node_info)
         storage = extractStorage decl_specs
     in case storage of
         Just (CExtern _) -> DeclarationImportingExternalObject
@@ -153,6 +169,28 @@ classifyDeclaration decl =
         Just (CAuto _) -> DeclarationWithVariables Automatic stripped_declaration variable_names
         Nothing -> DeclarationWithVariables Automatic stripped_declaration variable_names
         _ -> error $ "unable to handle storage type " ++ show storage
+  where
+    retrieveVariable (Just declarator,maybe_init,_) =
+        let CDeclr (Just ident) indirections maybe_cstrlit attributes _ = declarator
+            name = identToString ident in
+        case indirections of
+            (CFunDeclr _ _ _:_) -> Nothing
+            (CArrDeclr qualifiers (CNoArrSize unknown) _:rest) ->
+                let new_size_expr = if unknown
+                        then error "cannot handle global variable of array type with unknown size"
+                        else case maybe_init of
+                            Nothing -> error "global arrays with unspecified size must have an initializer to specify the size"
+                            Just (CInitExpr expr _) -> (CSizeofExpr expr internalNode)
+                            Just (CInitList list _) ->
+                                let last_designator_index = lastArrayDesignatorIndexIn (map fst list)
+                                in (CConst (CIntConst (cInteger last_designator_index) internalNode))
+                    new_indirections = CArrDeclr qualifiers (CArrSize False new_size_expr) internalNode : rest
+                    new_declarator = CDeclr (Just ident) new_indirections maybe_cstrlit attributes internalNode
+                in Just (name,(Just new_declarator,Nothing,Nothing))
+            _ -> Just (name,(Just declarator,Nothing,Nothing))
+
+    isStorage (CStorageSpec _) = True
+    isStorage _ = False
 -- @-node:gcross.20090517181648.8:classifyDeclaration
 -- @+node:gcross.20090517181648.11:classifyBlockItem
 classifyBlockItem :: CBlockItem -> BlockItemClassification
@@ -212,7 +250,19 @@ produceDocumentFromToplevelClassification classification =
                 DeclarationImportingExternalObject -> empty
                 OtherDeclaration decl -> pretty decl <> semi
                 DeclarationWithVariables storage_classification decl variable_names ->
-                    pretty decl <> semi $$ (sep . map (makeGlobalPrintfDoc storage_classification) $ variable_names)
+                    if not . null $ variable_names
+                        then
+                            pretty decl <> semi
+                            $$ (
+                                sep
+                                .
+                                map (makeGlobalPrintfDoc storage_classification)
+                                $
+                                variable_names
+                            )
+                        else
+                            let (CDecl specifiers _ _) = decl
+                            in if any isNamedType specifiers then pretty decl <> semi else empty
         FunctionDefinitionContainingStatics name items ->
                 makeBeginFunctionPrintfDoc name
             $+$ (braces . nest 4 . vcat . map produceDocumentFromBlockItemClassification $ items)
@@ -232,6 +282,10 @@ produceDocumentFromToplevelClassification classification =
                                                                                     function_name
     makeEndFunctionPrintfDoc :: Doc
     makeEndFunctionPrintfDoc = text $ printf "printf(\"\t</function>\\n\");"
+
+    isNamedType (CTypeSpec (CSUType (CStruct _ (Just _) _ _ _) _)) = True
+    isNamedType (CTypeSpec (CEnumType (CEnum (Just _) _ _ _) _)) = True
+    isNamedType _ = False
 -- @-node:gcross.20090517181648.5:produceDocumentFromToplevelClassification
 -- @-node:gcross.20090506115644.14:Document Production
 -- @+node:gcross.20090523222635.14:Processing

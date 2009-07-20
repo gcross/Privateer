@@ -31,26 +31,32 @@ import Language.C
 -- @+node:gcross.20090506115644.13:extractNestedBlocksFromStatement
 extractNestedBlocksFromStatement :: CStat -> [[CBlockItem]]
 extractNestedBlocksFromStatement stat =
-    catMaybes . map extractBlockFromStatement $
-        case stat of
-            CLabel _ s _ _ -> [s]
-            CCase _ s _ -> [s]
-            CCases _ _ s _ -> [s]
-            CDefault s _ -> [s]
-            CExpr _ _ -> []
-            CCompound _ _ _ -> [stat]
-            CIf _ s Nothing _ -> [s]
-            CIf _ s1 (Just s2) _ -> [s1,s2]
-            CSwitch _ s _ -> [s]
-            CWhile _ s _ _ -> [s]
-            CFor _ _ _ s _ -> [s]
-            CGoto _ _ -> []
-            CGotoPtr _ _ -> []
-            CCont _ -> []
-            CBreak _ -> []
-            CReturn _ _ -> []
-            CAsm _ _ -> []
+    case stat of
+        CLabel _ s _ _ -> recurse s
+        CCase _ s _ -> recurse s
+        CCases _ _ s _ -> recurse s
+        CDefault s _ -> recurse s
+        CExpr _ _ -> []
+        CCompound _ items _ -> [items]
+        CIf _ s Nothing _ -> recurse s
+        CIf _ s1 (Just s2) _ -> concat . map recurse $ [s1,s2]
+        CSwitch _ s _ -> recurse s
+        CWhile _ s _ _ -> recurse s
+        CFor _ _ _ s _ -> recurse s
+        CGoto _ _ -> []
+        CGotoPtr _ _ -> []
+        CCont _ -> []
+        CBreak _ -> []
+        CReturn _ _ -> []
+        CAsm _ _ -> []
+  where
+    recurse = extractNestedBlocksFromStatement
 -- @-node:gcross.20090506115644.13:extractNestedBlocksFromStatement
+-- @+node:gcross.20090517181648.12:extractBlockFromStatement
+extractBlockFromStatement :: CStat -> Maybe [CBlockItem]
+extractBlockFromStatement (CCompound _ items _) = Just items
+extractBlockFromStatement _ = Nothing
+-- @-node:gcross.20090517181648.12:extractBlockFromStatement
 -- @+node:gcross.20090506115644.16:extractStorage
 extractStorage :: [CDeclSpec] -> Maybe CStorageSpec
 extractStorage decl_specs =
@@ -59,11 +65,6 @@ extractStorage decl_specs =
     isStorageSpec (CStorageSpec _) = True
     isStorageSpec _ = False
 -- @-node:gcross.20090506115644.16:extractStorage
--- @+node:gcross.20090517181648.12:extractBlockFromStatement
-extractBlockFromStatement :: CStat -> Maybe [CBlockItem]
-extractBlockFromStatement (CCompound _ items _) = Just items
-extractBlockFromStatement _ = Nothing
--- @-node:gcross.20090517181648.12:extractBlockFromStatement
 -- @+node:gcross.20090709200011.61:extractNamesFromDeclarators
 extractNamesFromDeclarators :: [(Maybe CDeclr,Maybe CInit,Maybe CExpr)] -> [String]
 extractNamesFromDeclarators = map extractName
@@ -74,6 +75,18 @@ extractNamesFromDeclarators = map extractName
 extractNamesFromDeclarations :: [CDecl] -> [String]
 extractNamesFromDeclarations declarations = declarations >>= extractNamesFromDeclarators . (\(CDecl _ declarators _) -> declarators)
 -- @-node:gcross.20090710174219.11:extractNamesFromDeclarations
+-- @+node:gcross.20090711085032.15:makeCompoundStmt
+makeCompoundStmt :: [CBlockItem] -> CStat
+makeCompoundStmt items = CCompound [] items internalNode
+-- @-node:gcross.20090711085032.15:makeCompoundStmt
+-- @+node:gcross.20090718130736.32:isStorageSpecifier
+isStorageSpecifier (CStorageSpec _) = True
+isStorageSpecifier _ = False
+-- @nonl
+-- @-node:gcross.20090718130736.32:isStorageSpecifier
+-- @+node:gcross.20090718130736.33:removeStorageSpecifiers
+removeStorageSpecifiersFrom = filter (not . isStorageSpecifier)
+-- @-node:gcross.20090718130736.33:removeStorageSpecifiers
 -- @-node:gcross.20090506115644.15:Utilities
 -- @+node:gcross.20090523222635.16:Exceptions
 -- @+node:gcross.20090523222635.17:ParseException

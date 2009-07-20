@@ -142,7 +142,7 @@ makeTests = do
                     allocation_list = 
                         snd
                         .
-                        fromJust
+                        fromMaybe (error "failed to allocate memory blocks!")
                         .
                         allocateNamedBlocks initialBlockList
                         $
@@ -175,8 +175,7 @@ makeTests = do
                     global_variables_to_initialize = Set.elems global_variables_as_set
                     functions_with_statics_to_initialize = map S8.unpack . Trie.keys $ functions_with_statics
                     final_declarations =
-                        [   import_memcpy
-                        ,   makeGlobalVariableAccessor allocation_size
+                        [   makeGlobalVariableAccessor allocation_size
                         ,   CDeclExt $ makeInitializerForwardDeclaration
                                 global_variables_to_initialize
                                 functions_with_statics_to_initialize
@@ -210,7 +209,7 @@ makeTests = do
                     >>=
                     waitForProcess
                     >>=
-                    assertEqual "Were we able to compute the modified source file?" ExitSuccess
+                    assertEqual "Were we able to compile the modified source file?" ExitSuccess
 
                 openFile privatized_log_filepath WriteMode
                     >>=
@@ -222,7 +221,7 @@ makeTests = do
                     >>=
                     waitForProcess
                     >>=
-                    assertEqual "Were we able to compute the privatized source file?" ExitSuccess
+                    assertEqual "Were we able to compile the privatized source file?" ExitSuccess
 
                 original_output <-
                     createProcess (proc modified_executable_filepath []) { std_out = CreatePipe }
@@ -246,7 +245,16 @@ makeTests = do
 
     getDirectoryContents sourcepath >>= return . map (makeTest . dropExtension . takeFileName) . filter ((== ".c") . takeExtension)
   where
-    makeTrieLookupFunction map = toInteger . fromJust . flip Trie.lookup map . S8.pack
+    makeTrieLookupFunction map name =
+        toInteger
+        .
+        fromMaybe (error $ "unable to find variable named " ++ show name)
+        .
+        flip Trie.lookup map
+        .
+        S8.pack
+        $
+        name
 -- @-node:gcross.20090523222635.25:makeTests
 -- @-others
 

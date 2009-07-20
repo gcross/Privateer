@@ -51,7 +51,10 @@ import CommonTestUtils
 -- @+others
 -- @+node:gcross.20090715105401.29:Helpers
 -- @+node:gcross.20090715105401.27:makeFunctionFromMap
-makeFunctionFromMap map = toInteger . fromJust . flip Map.lookup map
+makeFunctionFromMap map name =
+    case Map.lookup name map of
+        Nothing -> error $ "unable to find global variable with name '" ++ name ++ "'"
+        Just offset -> toInteger offset
 -- @-node:gcross.20090715105401.27:makeFunctionFromMap
 -- @+node:gcross.20090715105401.28:makeFunctionFromLocalStaticMap
 makeFunctionFromLocalStaticMap map = fmap makeFunctionFromMap . flip Map.lookup map
@@ -185,9 +188,10 @@ makePrivatizeFunctionTest
     original_code
 -- @-node:gcross.20090710174219.12:makePrivatizeFunctionTest
 -- @+node:gcross.20090711085032.9:makeProcessStmtTest
-makeProcessStmtTest :: String -> Map String Int -> String -> String -> Assertion
+makeProcessStmtTest :: String -> Set String -> Map String Int -> String -> String -> Assertion
 makeProcessStmtTest
     module_data_accessor_name
+    global_variables
     local_static_variable_index_map
     original_code processed_code
     =
@@ -201,16 +205,22 @@ makeProcessStmtTest
     .
     pretty
     .
-    (\stat -> runReader (processStmt stat) (FunctionProcessingEnvironment module_data_accessor_name (makeFunctionFromMap local_static_variable_index_map)))
+    (\(x,_,_) -> x)
+    .
+    (\stat -> runRWS (processStmt stat)
+                    (FunctionProcessingEnvironment module_data_accessor_name (makeFunctionFromMap local_static_variable_index_map))
+                    (global_variables,Set.empty)
+    )
     .
     parseStatement
     $
     original_code
 -- @-node:gcross.20090711085032.9:makeProcessStmtTest
 -- @+node:gcross.20090711085032.22:makeProcessFunctionTest
-makeProcessFunctionTest :: String -> Map String Int -> String -> String -> Assertion
+makeProcessFunctionTest :: String -> Set String -> Map String Int -> String -> String -> Assertion
 makeProcessFunctionTest
     module_data_accessor_name
+    global_variables
     local_static_variable_index_map
     original_code processed_code
     =
@@ -226,7 +236,7 @@ makeProcessFunctionTest
     .
     CFDefExt
     .
-    processFunction module_data_accessor_name (makeFunctionFromMap local_static_variable_index_map)
+    processFunction module_data_accessor_name global_variables (makeFunctionFromMap local_static_variable_index_map)
     .
     (\(CFDefExt x) -> x)
     .
@@ -366,6 +376,12 @@ tests =
                 "{ var++; int var; var++; }"
                 "{ (*var)++; int var; var++; }"
             -- @-node:gcross.20090710174219.6:shadowing
+            -- @+node:gcross.20090718130736.27:initializer handling
+            ,testCase "shadowing" $
+                makePrivatizeStmtTest undefined undefined (Set.singleton "other") Set.empty
+                "{ int* var = &other; }"
+                "{ int* var = & (*__access__other());}"
+            -- @-node:gcross.20090718130736.27:initializer handling
             -- @+node:gcross.20090710174219.7:static declaration
             ,testCase "static declaration" $
                 makePrivatizeStmtTest "getPtr" (Map.fromList [("var1",42),("var2",12)]) Set.empty Set.empty
@@ -422,7 +438,7 @@ tests =
                                         ,   makeFloatExpr 3.14
                                         ,   makeStringExpr "right"
                                         ] ] internalNode
-                        in makeInitializer "global_variable" (makeTypedefSpecifier "global_variable_type") [] (Just init)
+                        in makeInitializer undefined "global_variable" (makeTypedefSpecifier "global_variable_type") [] (Just init)
                     source = unlines
                         [""
                         ,"#include <stdio.h>"
@@ -458,7 +474,7 @@ tests =
             -- @-node:gcross.20090709200011.28:with initializer
             -- @+node:gcross.20090709200011.29:without initializer
             ,testCase "without initializer" $
-                let initializer_source = render . pretty $ makeInitializer "global_variable" undefined [] Nothing
+                let initializer_source = render . pretty $ makeInitializer undefined "global_variable" undefined [] Nothing
                     source = unlines
                         [""
                         ,"#include <stdio.h>"
@@ -487,34 +503,40 @@ tests =
             -- @    @+others
             -- @+node:gcross.20090711085032.13:single statement
             [testCase "single statement" $
-                makeProcessStmtTest undefined undefined
+                makeProcessStmtTest undefined undefined undefined
                     "return i;"
                     "{ }"
             -- @-node:gcross.20090711085032.13:single statement
             -- @+node:gcross.20090711085032.16:multiple statements
             ,testCase "multiple statements" $
-                makeProcessStmtTest undefined undefined
+                makeProcessStmtTest undefined undefined undefined
                     "{ i = 1;  ++i; }"
                     "{ }"
             -- @-node:gcross.20090711085032.16:multiple statements
             -- @+node:gcross.20090711085032.17:non-static declarations
             ,testCase "non-static declarations" $
-                makeProcessStmtTest undefined undefined
+                makeProcessStmtTest undefined undefined undefined
                     "{ int i = 1;  ++i;  int j = i; }"
-                    "{ int i = 1; int j = i; }"
+                    "{ int i; int j; }"
             -- @-node:gcross.20090711085032.17:non-static declarations
             -- @+node:gcross.20090711085032.18:static declarations
             ,testCase "static declarations" $
-                makeProcessStmtTest "getPtr" (Map.singleton "svar" 13)
+                makeProcessStmtTest "getPtr" undefined (Map.singleton "svar" 13)
                     "{ static int svar = 1;  ++svar;  int j = svar; }"
-                    "{ static int svar = 1; memcpy(getPtr()+13,&svar,sizeof(svar)); int j = svar; }"
+                    "{ int svar = 1; memcpy(getPtr()+13,&svar,sizeof(svar)); int j; }"
             -- @-node:gcross.20090711085032.18:static declarations
             -- @+node:gcross.20090711085032.19:nesting
             ,testCase "nesting" $
-                makeProcessStmtTest "getPtr" (Map.singleton "svar" 13)
+                makeProcessStmtTest "getPtr" undefined (Map.singleton "svar" 13)
                     "{ if (i == 1) {static int svar = 1;  ++svar;} {for (i = 0; i < 2; ++i) { return 42; }} }"
-                    "{ {static int svar = 1; memcpy(getPtr()+13,&svar,sizeof(svar)); } }"
+                    "{ { int svar = 1; memcpy(getPtr()+13,&svar,sizeof(svar)); } }"
             -- @-node:gcross.20090711085032.19:nesting
+            -- @+node:gcross.20090718130736.31:aliased variable
+            ,testCase "aliased variable" $
+                makeProcessStmtTest "getPtr" (Set.singleton "other") (Map.singleton "svar" 13)
+                    "{ static int svar = &other;  ++svar; }"
+                    "{ int svar = & (*__access__other()); memcpy(getPtr()+13,&svar,sizeof(svar)); }"
+            -- @-node:gcross.20090718130736.31:aliased variable
             -- @-others
             ]
         -- @-node:gcross.20090711085032.10:processStmt
@@ -523,21 +545,21 @@ tests =
             -- @    @+others
             -- @+node:gcross.20090711085032.24:single statement
             [testCase "single statement" $
-                makeProcessFunctionTest undefined undefined
+                makeProcessFunctionTest undefined undefined undefined
                     "const int f() { return i; }"
-                    "static inline void __initialize_statics_in__f() { }"
+                    "static void __initialize_statics_in__f() { }"
             -- @-node:gcross.20090711085032.24:single statement
             -- @+node:gcross.20090711085032.25:arguments
             ,testCase "arguments" $
-                makeProcessFunctionTest undefined undefined
+                makeProcessFunctionTest undefined undefined undefined
                     "const int f(int a, restrict char* b, const short* c) { if (a == b) { return c; } else { ++(*b); }; }"
-                    "static inline void __initialize_statics_in__f() { int a; restrict char* b; const short* c; }"
+                    "static void __initialize_statics_in__f() { int a; restrict char* b; const short* c; }"
             -- @-node:gcross.20090711085032.25:arguments
             -- @+node:gcross.20090711085032.26:arguments and statics
             ,testCase "arguments and statics" $
-                makeProcessFunctionTest "getPtr" (Map.singleton "meaning_of_life" 24)
+                makeProcessFunctionTest "getPtr" undefined (Map.singleton "meaning_of_life" 24)
                     "static char* f(void ** data) { static int meaning_of_life = 42; }"
-                    "static inline void __initialize_statics_in__f() { void ** data; static int meaning_of_life = 42; memcpy(getPtr()+24,&meaning_of_life,sizeof(meaning_of_life)); }"
+                    "static void __initialize_statics_in__f() { void ** data; int meaning_of_life = 42; memcpy(getPtr()+24,&meaning_of_life,sizeof(meaning_of_life)); }"
             -- @-node:gcross.20090711085032.26:arguments and statics
             -- @-others
             ]
@@ -557,7 +579,13 @@ tests =
                     "static char* f() { strcpy(c,d); }"
                     "static char* f() { strcpy(*__access__c(),d); }"
             -- @-node:gcross.20090711085032.35:function
-            -- @+node:gcross.20090711085032.34:static variable
+            -- @+node:gcross.20090718130736.24:static forward function
+            ,testCase "static forward function" $
+                makeProcessToplevelDeclarationTest undefined (Set.singleton "c") undefined Map.empty
+                    "static char* f();"
+                    "static char* f();"
+            -- @-node:gcross.20090718130736.24:static forward function
+            -- @+node:gcross.20090711085032.34:global variable
             ,testCase "static variable" $
                 makeTestFromPrivatizedSource "getPtr" (Set.singleton "c") (Map.singleton "c" 3) (Map.singleton "main" Map.empty) False
                 (unlines
@@ -584,7 +612,7 @@ tests =
                     ,"  }"
                     ,"}"
                     ])
-            -- @-node:gcross.20090711085032.34:static variable
+            -- @-node:gcross.20090711085032.34:global variable
             -- @-others
             ]
         -- @-node:gcross.20090711085032.29:processToplevelDeclaration

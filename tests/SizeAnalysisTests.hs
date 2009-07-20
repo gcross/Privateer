@@ -272,6 +272,54 @@ tests =
                 $
                 "{ int i = 1; }"
             -- @-node:gcross.20090523222635.9:1
+            -- @+node:gcross.20090718130736.20:2
+            ,testCase "2" $
+                assertDataEqual "was the declaration correctly classified?" "{int i;}"
+                .
+                render
+                .
+                produceDocumentFromBlockItemClassification
+                .
+                classifyBlockItem
+                .
+                CBlockStmt
+                .
+                parseStatement
+                $
+                "if (1) { int i = 1; }"
+            -- @-node:gcross.20090718130736.20:2
+            -- @+node:gcross.20090718130736.22:3
+            ,testCase "3" $
+                assertDataEqual "was the declaration correctly classified?" "{{int i;}}"
+                .
+                render
+                .
+                produceDocumentFromBlockItemClassification
+                .
+                classifyBlockItem
+                .
+                CBlockStmt
+                .
+                parseStatement
+                $
+                "switch(1) { case 1: if (1) { int i = 1; } }"
+            -- @-node:gcross.20090718130736.22:3
+            -- @+node:gcross.20090718130736.23:4
+            ,testCase "4" $
+                assertDataEqual "was the declaration correctly classified?" "{{int i;}}"
+                .
+                render
+                .
+                produceDocumentFromBlockItemClassification
+                .
+                classifyBlockItem
+                .
+                CBlockStmt
+                .
+                parseStatement
+                $
+                "if (1) { if (1) { int i = 1; } }"
+            -- @-node:gcross.20090718130736.23:4
             -- @-others
             ]
         -- @-node:gcross.20090523222635.8:declarations

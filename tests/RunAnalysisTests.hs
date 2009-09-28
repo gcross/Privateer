@@ -201,7 +201,7 @@ makeTests = do
                 openFile modified_log_filepath WriteMode
                     >>=
                     (\handle -> createProcess (shell . intercalate " " $
-                        ["cc","-I",includepath,modified_source_filepath,"-o",modified_executable_filepath])
+                        ["cc","-I",includepath,modified_source_filepath,"-o",modified_executable_filepath,"-pthread","-ldl"])
                         { std_out = CreatePipe, std_err = UseHandle handle })
                     >>=
                     (\(_,_,_,handle) -> return handle)
@@ -213,7 +213,7 @@ makeTests = do
                 openFile privatized_log_filepath WriteMode
                     >>=
                     (\handle -> createProcess (shell . intercalate " " $
-                        ["cc","-O3",privatized_source_filepath,"-o",privatized_executable_filepath])
+                        ["cc","-O3",privatized_source_filepath,"-o",privatized_executable_filepath,"-pthread","-ldl"])
                         { std_out = CreatePipe, std_err = UseHandle handle })
                     >>=
                     (\(_,_,_,handle) -> return handle)

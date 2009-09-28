@@ -14640,7 +14640,7 @@ SQLITE_PRIVATE sqlite3_mutex_methods *sqlite3DefaultMutex(void){
 
 #include <pthread.h>
 
-
+#define SQLITE_HOMEGROWN_RECURSIVE_MUTEX
 /*
 ** Each recursive mutex is an instance of the following structure.
 */

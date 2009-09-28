@@ -1,5 +1,5 @@
 -- @+leo-ver=4-thin
--- @+node:gcross.20090615091711.11:@thin VariableLayout.hs
+-- @+node:gcross.20090928160742.1:@thin VariableLayout.hs
 -- @@language Haskell
 
 module Algorithm.GlobalVariablePrivatization.VariableLayout where
@@ -173,5 +173,5 @@ toList (PointedList prefix head tail) = go prefix (head:tail)
 -- @-node:gcross.20090615091711.33:toList
 -- @-node:gcross.20090715105401.4:Helper functions
 -- @-others
--- @-node:gcross.20090615091711.11:@thin VariableLayout.hs
+-- @-node:gcross.20090928160742.1:@thin VariableLayout.hs
 -- @-leo

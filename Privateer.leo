@@ -14,6 +14,7 @@
 <v t="gcross.20090621150053.3"><vh>@path src/Algorithm/GlobalVariablePrivatization</vh>
 <v t="gcross.20090520163423.12"><vh>@thin Common.hs</vh></v>
 <v t="gcross.20090502101608.4"><vh>@thin SizeAnalysis.hs</vh></v>
+<v t="gcross.20090928160742.1"><vh>@thin VariableLayout.hs</vh></v>
 <v t="gcross.20090708193517.2"><vh>@thin Privatization.hs</vh></v>
 </v>
 <v t="gcross.20090502101608.5"><vh>@path src</vh>

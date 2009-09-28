@@ -47,8 +47,7 @@ import Text.XML.Expat.Tree
 
 import Algorithm.GlobalVariablePrivatization.SizeAnalysis
 import Algorithm.GlobalVariablePrivatization.Privatization
-
-import Algorithm.VariableLayout
+import Algorithm.GlobalVariablePrivatization.VariableLayout
 
 import CommonTestUtils
 

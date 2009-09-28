@@ -9,7 +9,7 @@ main = defaultMainWithHooks (simpleUserHooks {runTests = runzeTests})
 
 runzeTests _ _ _ _= do
   putStrLn "Checking for required modules..."
-  found <- forM ["test-framework","test-framework-hunit"] $ \package_name -> do
+  found <- forM ["test-framework","test-framework-hunit","test-framework-quickcheck"] $ \package_name -> do
     putStr $ printf "Checking for package %s...  " package_name
     hFlush stdout
     error_code <- system $ printf "ghc-pkg field %s version" package_name

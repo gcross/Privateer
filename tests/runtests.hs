@@ -7,6 +7,7 @@ module Main where
 import Test.Framework
 
 import CommonTests
+import VariableLayoutTests
 import SizeAnalysisTests
 import RunAnalysisTests
 import PrivatizationTests
@@ -15,6 +16,7 @@ main = do
     run_analysis_tests <- RunAnalysisTests.makeTests
     defaultMain
         [   testGroup "module CommonTests" CommonTests.tests
+        ,   testGroup "module VariableLayoutTests" VariableLayoutTests.tests
         ,   testGroup "module SizeAnalysisTests" SizeAnalysisTests.tests
         ,   testGroup "module PrivatizationTests" PrivatizationTests.tests
         ,   testGroup "module RunAnalysisTests" run_analysis_tests

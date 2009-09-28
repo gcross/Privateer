@@ -23,8 +23,9 @@
 <v t="gcross.20090209172438.8"><vh>@thin CommonTestUtils.hs</vh></v>
 <v t="gcross.20090520163423.2"><vh>@thin CommonTests.hs</vh></v>
 <v t="gcross.20090520220305.3"><vh>@thin SizeAnalysisTests.hs</vh></v>
-<v t="gcross.20090523222635.23"><vh>@thin RunAnalysisTests.hs</vh></v>
 <v t="gcross.20090709200011.8"><vh>@thin PrivatizationTests.hs</vh></v>
+<v t="gcross.20090523222635.23"><vh>@thin RunAnalysisTests.hs</vh></v>
+<v t="gcross.20090928152056.1491"><vh>@thin VariableLayoutTests.hs</vh></v>
 <v t="gcross.20090411002248.2"><vh>@thin runtests.hs</vh></v>
 </v>
 </vnodes>

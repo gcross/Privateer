@@ -34,8 +34,7 @@ import Text.Printf
 import Text.XML.Expat.Tree
 
 import Algorithm.GlobalVariablePrivatization.Common
-
-import Algorithm.VariableLayout
+import Algorithm.GlobalVariablePrivatization.VariableLayout
 -- @-node:gcross.20090502101608.6:<< Imports >>
 -- @nl
 

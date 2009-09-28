@@ -26,10 +26,13 @@ Executable privateer-analyze
                   stream-fusion >= 0.1.2.1,
                   bytestring >= 0.9.1.4,
                   bytestring-trie >= 0.1.4,
-                  hexpat >= 0.8
+                  hexpat >= 0.8,
+                  pointedlist >= 0.3.5,
+                  data-accessor >= 0.2.1
   Main-Is:        privateer-analyze.hs
   Hs-Source-Dirs: src
-  Other-Modules:  Algorithm.GlobalVariablePrivatization.SizeAnalysis
+  Other-Modules:  Algorithm.GlobalVariablePrivatization.SizeAnalysis,
+                  Algorithm.GlobalVariablePrivatization.VariableLayout
   GHC-Options:    -O0
 -- @-node:gcross.20090709200011.3:@thin Privateer.cabal
 -- @-leo

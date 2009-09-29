@@ -11,7 +11,7 @@ module Algorithm.GlobalVariablePrivatization.Privatization where
 
 -- @<< Imports >>
 -- @+node:gcross.20090709200011.2:<< Imports >>
-import Prelude hiding (map,(++),null,concat,filter,head)
+import Prelude hiding (map,(++),null,concat,filter,head,length,any)
 
 import Control.Arrow
 import Control.Monad
@@ -478,10 +478,18 @@ privatizeFunction
 -- @-node:gcross.20090710174219.10:privatizeFunction
 -- @+node:gcross.20090718130736.26:privatizeInitializer
 privatizeInitializer :: (Maybe CDeclr, Maybe CInit, Maybe CExpr) -> FunctionProcessingMonad (Maybe CDeclr, Maybe CInit, Maybe CExpr)
-privatizeInitializer declarator@(maybe_declr, maybe_init, maybe_expr) =
-    case maybe_init of 
-        Nothing -> return declarator
-        Just init -> privatizeInit init >>= (\new_init -> return (maybe_declr,Just new_init,maybe_expr))
+privatizeInitializer (maybe_declr, maybe_init, maybe_expr) = do
+    new_init <-
+        case maybe_init of 
+            Just init -> privatizeInit init >>= return . Just
+            Nothing -> return Nothing
+    new_declr <-
+        case maybe_declr of
+            Just (CDeclr maybe_ident ((CArrDeclr qualifiers (CArrSize is_static expr) _):rest_indirections) maybe_cstrlit attributes _) -> do
+                new_expr <- privatizeExpr expr
+                return $ Just (CDeclr maybe_ident ((CArrDeclr qualifiers (CArrSize is_static new_expr) internalNode):rest_indirections) maybe_cstrlit attributes internalNode)
+            _ -> return maybe_declr
+    return (new_declr,new_init,maybe_expr)
 -- @-node:gcross.20090718130736.26:privatizeInitializer
 -- @+node:gcross.20090928192713.1550:privatizeInit
 privatizeInit :: CInit -> FunctionProcessingMonad CInit
@@ -525,8 +533,66 @@ processBlockItem item =
                     declaration <- privatizeInitializersInDeclaration decl >>= return . CBlockDecl
                     memcpy_stmts <- mapM (makeInitializerStmt >=> return . CBlockStmt) (extractNamesFromDeclarators declarators)
                     return (declaration:memcpy_stmts)
-                _ -> return [CBlockDecl . flip (CDecl specifiers) internalNode $ [(a,Nothing,b) | (a,_,b) <- declarators]]
+                _ -> mapM stripInitializerFromDeclarator declarators
+                     >>=
+                     return
+                        .
+                        (:[])
+                        .
+                        CBlockDecl
+                        .
+                        flip (CDecl specifiers) internalNode
 -- @-node:gcross.20090711085032.3:processBlockItem
+-- @+node:gcross.20090928211147.1551:stripInitializerFromDeclarator
+stripInitializerFromDeclarator :: (Maybe CDeclr, Maybe CInit, Maybe CExpr) -> FunctionProcessingMonad (Maybe CDeclr, Maybe CInit, Maybe CExpr)
+stripInitializerFromDeclarator
+  ( Just (CDeclr maybe_ident ((CArrDeclr qualifiers (CNoArrSize _) _):rest_indirections) maybe_cstrlit attributes _)
+  , Just (CInitList list _)
+  , maybe_expr
+  ) = return $
+        if any (not . null . fst) list
+            then error "Array designators in initializers are not fully supported yet."
+            else
+              ( Just (
+                  CDeclr
+                    maybe_ident (
+                        (CArrDeclr
+                            qualifiers
+                            (CArrSize False (makeIntegerExpr . toInteger . length $ list))
+                            internalNode
+                        ):rest_indirections
+                    )
+                    maybe_cstrlit
+                    attributes
+                    internalNode
+                )
+              , Nothing
+              , maybe_expr
+              )
+stripInitializerFromDeclarator
+  ( Just (CDeclr maybe_ident ((CArrDeclr qualifiers (CArrSize is_static expr) _):rest_indirections) maybe_cstrlit attributes _)
+  , _
+  , maybe_expr
+  ) = do
+        new_expr <- privatizeExpr expr
+        return ( Just (
+                  CDeclr
+                    maybe_ident (
+                        (CArrDeclr
+                            qualifiers
+                            (CArrSize is_static new_expr)
+                            internalNode
+                        ):rest_indirections
+                    )
+                    maybe_cstrlit
+                    attributes
+                    internalNode
+                )
+              , Nothing
+              , maybe_expr
+              )
+stripInitializerFromDeclarator (maybe_declr,_,maybe_expr) = return (maybe_declr,Nothing,maybe_expr)
+-- @-node:gcross.20090928211147.1551:stripInitializerFromDeclarator
 -- @+node:gcross.20090711085032.12:processStmt
 processStmt :: CStat -> FunctionProcessingMonad CStat
 processStmt stat =

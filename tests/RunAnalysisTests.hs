@@ -146,7 +146,7 @@ makeTests = do
                         allocateNamedBlocks initialBlockList
                         $
                         request_list
-                    allocation_size = totalSpaceRequired request_list allocation_list
+                    allocation_size = totalSpaceRequired allocation_list
                     (AnalyzedModule exported_variables hidden_variables functions_with_statics) =
                         allocationListToAnalyzedModule allocation_list
                     global_variables_as_trie = exported_variables `Trie.unionR` hidden_variables
@@ -157,8 +157,8 @@ makeTests = do
                 -- @                << Perform privatization >>
                 -- @+node:gcross.20090718130736.15:<< Perform privatization >>
                 let module_data_accessor_name = "getPtr"
-                    getGlobalVariableOffset = makeTrieLookupFunction global_variables_as_trie
-                    getFunctionStaticVariableOffset =
+                    getGlobalVariableAllocation = makeTrieLookupFunction global_variables_as_trie
+                    getFunctionStaticVariableAllocation =
                         fmap makeTrieLookupFunction
                         .
                         flip Trie.lookup functions_with_statics
@@ -168,8 +168,8 @@ makeTests = do
                         Algorithm.GlobalVariablePrivatization.Privatization.processTranslUnit
                             module_data_accessor_name
                             global_variables_as_set
-                            getGlobalVariableOffset
-                            getFunctionStaticVariableOffset
+                            getGlobalVariableAllocation
+                            getFunctionStaticVariableAllocation
                             transl_unit
                     global_variables_to_initialize = Set.elems global_variables_as_set
                     functions_with_statics_to_initialize = map S8.unpack . Trie.keys $ functions_with_statics
@@ -245,8 +245,6 @@ makeTests = do
     getDirectoryContents sourcepath >>= return . map (makeTest . dropExtension . takeFileName) . filter ((== ".c") . takeExtension)
   where
     makeTrieLookupFunction map name =
-        toInteger
-        .
         fromMaybe (error $ "unable to find variable named " ++ show name)
         .
         flip Trie.lookup map

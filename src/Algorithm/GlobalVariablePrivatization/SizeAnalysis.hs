@@ -65,9 +65,9 @@ data BlockItemClassification =
 -- @-node:gcross.20090715105401.18:Classifications
 -- @+node:gcross.20090715105401.19:Analysis
 data AnalyzedModule = AnalyzedModule
-    {    exportedVariables :: !(Trie Offset)
-    ,    hiddenVariables :: !(Trie Offset)
-    ,    functionsWithStaticVariables :: !(Trie (Trie Offset))
+    {    exportedVariables :: !(Trie Allocation)
+    ,    hiddenVariables :: !(Trie Allocation)
+    ,    functionsWithStaticVariables :: !(Trie (Trie Allocation))
     } deriving (Show)
 
 data VariableKey =
@@ -379,27 +379,27 @@ xmlToRequestList (Element name _ children) =
 moduleWithoutVariables = AnalyzedModule Trie.empty Trie.empty Trie.empty
 -- @-node:gcross.20090715105401.25:moduleWithoutVariables
 -- @+node:gcross.20090715105401.24:allocationListToAnalyzedModule
-allocationListToAnalyzedModule :: [(VariableKey,Offset)] -> AnalyzedModule
+allocationListToAnalyzedModule :: [(VariableKey,Allocation)] -> AnalyzedModule
 allocationListToAnalyzedModule = List.foldl' addVariable moduleWithoutVariables --'
   where
-    addVariable :: AnalyzedModule -> (VariableKey,Offset) -> AnalyzedModule
-    addVariable analyzed_module (key,offset) =
+    addVariable :: AnalyzedModule -> (VariableKey,Allocation) -> AnalyzedModule
+    addVariable analyzed_module (key,allocation) =
         case key of
             ExportedVariableKey name ->
                 analyzed_module {
-                    exportedVariables = Trie.insert name offset (exportedVariables analyzed_module)
+                    exportedVariables = Trie.insert name allocation (exportedVariables analyzed_module)
                 }
             HiddenVariableKey name ->
                 analyzed_module {
-                    hiddenVariables = Trie.insert name offset (hiddenVariables analyzed_module)
+                    hiddenVariables = Trie.insert name allocation (hiddenVariables analyzed_module)
                 }
             FunctionStaticVariableKey function_name variable_name ->
                 let old_statics = functionsWithStaticVariables analyzed_module
                 in analyzed_module {
                     functionsWithStaticVariables = Trie.insert function_name (
                         maybe
-                            (Trie.singleton variable_name offset)
-                            (Trie.insert variable_name offset)
+                            (Trie.singleton variable_name allocation)
+                            (Trie.insert variable_name allocation)
                             (Trie.lookup function_name old_statics)
                     ) old_statics
                 }

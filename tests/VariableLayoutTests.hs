@@ -33,6 +33,7 @@ import Test.HUnit
 import Test.Framework.Providers.QuickCheck2
 import Test.QuickCheck
 
+import Algorithm.GlobalVariablePrivatization.Common
 import Algorithm.GlobalVariablePrivatization.VariableLayout
 
 import Control.Exception
@@ -173,12 +174,15 @@ tests =
     ,testGroup "allocateBlock"
         -- @    @+others
         -- @+node:gcross.20090615091711.35:null
-        [testCase "null" $ assertEqual "is the correct result returned?" Nothing (allocateBlock [] (0,1))
+        [testCase "null" $
+            assertEqual "is the correct result returned?"
+                Nothing
+                (allocateBlock [] (0,1))
         -- @-node:gcross.20090615091711.35:null
         -- @+node:gcross.20090615091711.36:simplest
         ,testCase "simplest" $
-            assertEqual "is the correct offset returned?"
-                (Just 0)
+            assertEqual "is the correct size and offset returned?"
+                (Just (Allocation {allocationSize = 1, allocationOffset = 0}))
                 (fmap snd . allocateBlock [(0,Seq.singleton 0)] $ (0,1))
         -- @-node:gcross.20090615091711.36:simplest
         -- @+node:gcross.20090715105401.8:always successful with large block (1)
@@ -196,7 +200,7 @@ tests =
             \(SI requested_alignment,ST requested_size,BL blocks) ->
                 case allocateBlock blocks (requested_alignment,requested_size) of
                     Nothing -> True
-                    Just (_,offset) -> (offset == offset `makeAligned` requested_alignment)
+                    Just (_, Allocation { allocationOffset = offset }) -> (offset == offset `makeAligned` requested_alignment)
         -- @-node:gcross.20090615091711.44:correct alignment returned
         -- @+node:gcross.20090618135417.2:size of free space is reduced (1)
         ,testProperty "size of free space is reduced (1)" $
@@ -227,7 +231,11 @@ tests =
                     requests = map (second (minimumAlignment &&& id)) variables
                 in case allocateNamedBlocks initialBlockList requests of
                     Nothing -> True
-                    Just (_,offsets) -> all (\(name,offset) -> offset == offset `makeAligned` (minimumAlignment $ fromJust $ lookup name variables)) offsets
+                    Just (_,allocations) ->
+                        all (
+                            \(name, Allocation {allocationOffset = offset}) ->
+                                offset == offset `makeAligned` (minimumAlignment $ fromJust $ lookup name variables)
+                        ) allocations
         -- @-node:gcross.20090715105401.15:correct alignment returned
         -- @+node:gcross.20090715105401.16:size of free space is reduced (1)
         ,testProperty "size of free space is reduced (1)" $
@@ -257,7 +265,7 @@ tests =
                     requests = map (second (minimumAlignment &&& id)) variables
                 in (not . null) variables ==> case allocateNamedBlocks initialBlockList requests of
                     Nothing -> True
-                    Just (new_blocks,offsets) -> totalSpaceRequired requests offsets >= sum sizes
+                    Just (new_blocks,allocations) -> totalSpaceRequired allocations >= sum sizes
         -- @-node:gcross.20090715105401.22:total space > space allocated
         -- @-others
         ]
@@ -268,5 +276,6 @@ tests =
 -- @-node:gcross.20090615091711.19:Tests
 -- @-others
 
+main = defaultMain tests
 -- @-node:gcross.20090928152056.1491:@thin VariableLayoutTests.hs
 -- @-leo

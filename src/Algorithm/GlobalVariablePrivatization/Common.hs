@@ -17,12 +17,16 @@ import Data.Data
 import Data.Generics
 import Data.List
 import Data.Maybe
+import Data.Word
 import Language.C
 -- @-node:gcross.20090520163423.13:<< Imports >>
 -- @nl
 
 -- @<< Types >>
 -- @+node:gcross.20090520220305.36:<< Types >>
+type Offset = Word
+type Size = Word
+data Allocation = Allocation { allocationSize :: Size, allocationOffset :: Offset } deriving (Eq, Show)
 -- @-node:gcross.20090520220305.36:<< Types >>
 -- @nl
 

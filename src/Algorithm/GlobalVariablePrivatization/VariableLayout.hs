@@ -19,13 +19,13 @@ import qualified Data.Map as Map
 import Data.Sequence (Seq, (|>), ViewL(EmptyL,(:<)))
 import qualified Data.Sequence as Seq
 import Data.Word
+
+import Algorithm.GlobalVariablePrivatization.Common
 -- @-node:gcross.20090615091711.12:<< Imports >>
 -- @nl
 
 -- @<< Types >>
 -- @+node:gcross.20090615091711.13:<< Types >>
-type Offset = Word
-type Size = Offset
 type Alignment = Int
 type Request = (Alignment,Size)
 type RequestList = [Request]
@@ -60,9 +60,9 @@ fragmentBlocks final_alignment starting_offset = go2 final_alignment final_offse
     go2 alignment offset = go (alignment-1) (offset - bit (alignment-1))
 -- @-node:gcross.20090615091711.29:fragmentBlocks
 -- @+node:gcross.20090615091711.14:allocateBlock
-allocateBlock :: BlockList -> Request -> Maybe (BlockList,Offset)
+allocateBlock :: BlockList -> Request -> Maybe (BlockList,Allocation)
 allocateBlock block_list (requested_alignment,requested_size)
- | requested_size == 0 = Just (block_list,0)
+ | requested_size == 0 = Just (block_list,Allocation 0 0)
  | bit requested_alignment < requested_size = Nothing
  | otherwise =
     assert(requested_size `shiftR` (requested_alignment+1) == 0)
@@ -84,14 +84,15 @@ allocateBlock block_list (requested_alignment,requested_size)
                     offset :< remaining_offsets ->
                         Just ((focusA ^= (alignment,remaining_offsets)) block_zipper, alignment, offset)
 
-    mergeFragments :: (BlockZipper,Alignment,Offset) -> (BlockList,Offset)
+    mergeFragments :: (BlockZipper,Alignment,Offset) -> (BlockList,Allocation)
     mergeFragments (block_zipper,alignment,offset)
         | bit alignment == requested_size
-            = (toList block_zipper,offset)
+            = (toList block_zipper,allocation)
         | otherwise
-            -- = trace ("alignment = " ++ show alignment ++ ", offset+requested_size = " ++ show (offset+requested_size)) $ (go (fragmentBlocks alignment (offset+requested_size)) block_zipper, offset)
-            = (go (fragmentBlocks alignment (offset+requested_size)) block_zipper, offset)
+            = (go (fragmentBlocks alignment (offset+requested_size)) block_zipper,allocation)
       where
+        allocation = Allocation {allocationSize = requested_size, allocationOffset = offset}
+
         go :: [(Alignment,Offset)] -> BlockZipper -> BlockList
         go fragment_list =
             case fragment_list of
@@ -113,16 +114,16 @@ allocateBlock block_list (requested_alignment,requested_size)
                     in go remaining_fragments . go2
 -- @-node:gcross.20090615091711.14:allocateBlock
 -- @+node:gcross.20090715105401.5:allocateBlocks
-allocateBlocks :: BlockList -> RequestList -> Maybe (BlockList,[Offset])
+allocateBlocks :: BlockList -> RequestList -> Maybe (BlockList,[Allocation])
 allocateBlocks initial_blocklist requests = go requests (initial_blocklist,Seq.empty)
   where
-    go :: RequestList -> (BlockList,Seq Offset) -> Maybe (BlockList,[Offset])
-    go [] (block_list,offsets) = Just (block_list,Foldable.toList offsets)
-    go (request:remaining_requests) (block_list,offsets) =
-        allocateBlock block_list request >>= go remaining_requests . second (offsets |>)
+    go :: RequestList -> (BlockList,Seq Allocation) -> Maybe (BlockList,[Allocation])
+    go [] (block_list,allocations) = Just (block_list,Foldable.toList allocations)
+    go (request:remaining_requests) (block_list,allocations) =
+        allocateBlock block_list request >>= go remaining_requests . second (allocations |>)
 -- @-node:gcross.20090715105401.5:allocateBlocks
 -- @+node:gcross.20090715105401.6:allocateNamedBlocks
-allocateNamedBlocks :: BlockList -> NamedRequestList a -> Maybe (BlockList,[(a,Offset)])
+allocateNamedBlocks :: BlockList -> NamedRequestList a -> Maybe (BlockList,[(a,Allocation)])
 allocateNamedBlocks block_list named_requests =
     let (names,requests) = unzip . List.sortBy (compare `on` (snd . snd)) $ named_requests
     in allocateBlocks block_list requests >>= return . second (zip names)
@@ -132,11 +133,8 @@ totalSpaceInBlocks :: (Integral a, Bits a) => BlockList -> a
 totalSpaceInBlocks = sum . map (\(alignment,offsets) -> ((bit alignment) * (fromIntegral . toInteger . Seq.length $ offsets)))
 -- @-node:gcross.20090615091711.39:totalSpaceInBlocks
 -- @+node:gcross.20090715105401.21:totalSpaceRequired
-totalSpaceRequired :: Ord a => [(a,(Alignment,Size))] -> [(a,Offset)] -> Size
-totalSpaceRequired sizes offsets =
-    let sizes_map = Map.fromList . map (id *** snd) $ sizes
-        offsets_map = Map.fromList offsets
-    in maximum . Map.elems $ Map.unionWith (+) sizes_map offsets_map
+totalSpaceRequired :: Ord a => [(a,Allocation)] -> Size
+totalSpaceRequired = maximum . map (uncurry (+) . (allocationSize &&& allocationOffset) . snd)
 -- @-node:gcross.20090715105401.21:totalSpaceRequired
 -- @-node:gcross.20090715105401.2:Algorithm functions
 -- @+node:gcross.20090715105401.4:Helper functions

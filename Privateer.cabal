@@ -31,8 +31,7 @@ Executable privateer-analyze
                   data-accessor >= 0.2.1
   Main-Is:        privateer-analyze.hs
   Hs-Source-Dirs: src
-  Other-Modules:  Algorithm.GlobalVariablePrivatization.SizeAnalysis,
-                  Algorithm.GlobalVariablePrivatization.VariableLayout
+  Other-Modules:  Algorithm.GlobalVariablePrivatization.SizeAnalysis
   GHC-Options:    -O0
 -- @-node:gcross.20090709200011.3:@thin Privateer.cabal
 -- @-leo

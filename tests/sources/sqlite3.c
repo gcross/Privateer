@@ -106722,8 +106722,86 @@ SQLITE_PRIVATE void sqlite3Fts3IcuTokenizerModule(
 /************** End of fts3_icu.c ********************************************/
 
 #include <stdio.h>
+#include <unistd.h>
 
-int main() {
+static int callback(void *NotUsed, int argc, char **argv, char **azColName){
+  int i;
+  for(i=0; i<argc; i++){
+    printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+  }
+  printf("\n");
+  return 0;
+}
+
+int main(int argc, char **argv){
   __initialize__();
-  printf("Hello, world!\n");
+
+  unlink("dummydatabase.db");
+
+  sqlite3 *db;
+  int rc;
+  rc = sqlite3_open("dummydatabase.db", &db);
+  if( rc ){
+    printf("Can't open database: %s\n", sqlite3_errmsg(db));
+    sqlite3_close(db);
+    return 1;
+  }
+
+  rc = sqlite3_exec(db,"BEGIN TRANSACTION; CREATE TABLE t1 (key INTEGER PRIMARY KEY,data1 TEXT,num1 double,timeEnter1 DATE); INSERT INTO t1 VALUES(1, 'This is sample data', 3, NULL); INSERT INTO t1 VALUES(2, 'More sample data', 6, NULL); INSERT INTO t1 VALUES(3, 'And a little more', 9, NULL); COMMIT;",NULL,NULL,NULL);
+  if( rc ){
+    printf("Error creating and populating table: %s\n", sqlite3_errmsg(db));
+  }
+  
+  rc = sqlite3_exec(db,"SELECT key,data1,num1 FROM t1 ORDER BY key",callback,NULL,NULL);
+  if( rc ){
+    printf("Error running query on table: %s\n", sqlite3_errmsg(db));
+  }
+
+  rc = sqlite3_exec(db,"DELETE FROM t1 WHERE key = 1",NULL,NULL,NULL);
+  if( rc ){
+    printf("Error creating and populating table: %s\n", sqlite3_errmsg(db));
+  }
+
+  rc = sqlite3_exec(db,"SELECT key,data1,num1 FROM t1 ORDER BY key",callback,NULL,NULL);
+  if( rc ){
+    printf("Error running query on table: %s\n", sqlite3_errmsg(db));
+  }
+
+  rc = sqlite3_exec(db,"BEGIN TRANSACTION; CREATE TABLE t2 (key INTEGER PRIMARY KEY,data2 TEXT,num2 double,timeEnter2 DATE); INSERT INTO t2 VALUES(1, 'Row A data', 3, NULL); INSERT INTO t2 VALUES(2, 'Row B data', 6, NULL); INSERT INTO t2 VALUES(3, 'Row C data', 9, NULL); COMMIT;",NULL,NULL,NULL);
+  if( rc ){
+    printf("Error creating and populating table: %s\n", sqlite3_errmsg(db));
+  }
+
+  rc = sqlite3_exec(db,"SELECT data1,data2 FROM t1 NATURAL JOIN t2 ORDER BY t1.key",callback,NULL,NULL);
+  if( rc ){
+    printf("Error running query on table: %s\n", sqlite3_errmsg(db));
+  }
+
+  rc = sqlite3_exec(db,"BEGIN TRANSACTION;  DELETE FROM t1 WHERE key = 1;  DELETE FROM t2 WHERE key = 2;  ROLLBACK;  SELECT data1,data2 FROM t1 NATURAL JOIN t2 ORDER BY t1.key",callback,NULL,NULL);
+  if( rc ){
+    printf("Error running query on table: %s\n", sqlite3_errmsg(db));
+  }
+
+  rc = sqlite3_exec(db,"CREATE TRIGGER update_data UPDATE OF data1 ON t1 BEGIN UPDATE t2 SET data2 = new.data1 WHERE key = new.key; END;",NULL,NULL,NULL);
+  if( rc ){
+    printf("Error running query on table: %s\n", sqlite3_errmsg(db));
+  }
+
+  rc = sqlite3_exec(db,"UPDATE t1 SET data1 = 'New data' WHERE key = 2;",NULL,NULL,NULL);
+  if( rc ){
+    printf("Error running query on table: %s\n", sqlite3_errmsg(db));
+  }
+  
+  rc = sqlite3_exec(db,"CREATE VIEW samekeys AS SELECT key FROM t1 NATURAL JOIN t2 WHERE t1.data = t2.data;",callback,NULL,NULL);
+  if( rc ){
+    printf("Error running query on table: %s\n", sqlite3_errmsg(db));
+  }
+
+  rc = sqlite3_exec(db,"SELECT * FROM samekeys",callback,NULL,NULL);
+  if( rc ){
+    printf("Error running query on table: %s\n", sqlite3_errmsg(db));
+  }
+
+  sqlite3_close(db);
+  return 0;
 }
